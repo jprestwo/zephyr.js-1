@@ -1,4 +1,4 @@
-BOARD ?= arduino_101_factory
+BOARD ?= arduino_101
 KERNEL ?= micro
 UPDATE ?= exit
 
@@ -17,9 +17,11 @@ TRACE ?= off
 # Specify pool malloc or heap malloc
 MALLOC ?= pool
 
+# TODO: The latest Zephyr seems to require running make mrproper for each build
+#       the mrproper target should be removed when this is fixed
 # Build for zephyr, default target
 .PHONY: zephyr
-zephyr: analyze generate
+zephyr: mrproper analyze generate
 	@make -f Makefile.zephyr BOARD=$(BOARD) KERNEL=$(KERNEL) VARIANT=$(VARIANT) MEM_STATS=$(MEM_STATS)
 
 .PHONY: analyze
@@ -124,13 +126,20 @@ update:
 setup: update
 ifeq ($(BOARD), qemu_x86)
 	cp prj.conf.qemu_x86 prj.conf
+	@echo "CONFIG_X86_IAMCU=n" >> prj.conf
+	@echo "CONFIG_ARCH=x86" >> prj.conf
 else
 ifeq ($(DEV), ashell)
 	cp prj.conf.arduino_101_dev prj.conf
 else
 	cp prj.conf.base prj.conf
 endif
-ifeq ($(BOARD), arduino_101_factory)
+ifeq ($(BOARD), arduino_101)
+	@echo "CONFIG_IPM=y" >> prj.conf
+	@echo "CONFIG_IPM_QUARK_SE=y" >> prj.conf
+	@echo "CONFIG_IPM_CONSOLE_SENDER=y" >> prj.conf
+	@echo "CONFIG_X86_IAMCU=n" >> prj.conf
+	@echo "CONFIG_ARCH=x86" >> prj.conf
 ifeq ($(ZJS_PARTITION), 256)
 	cat prj.conf.partition_256 >> prj.conf
 endif
@@ -190,7 +199,7 @@ arc:
 ifeq ($(ZJS_PARTITION), 256)
 	@cat arc/prj.conf.partition_256 >> arc/prj.conf
 endif
-	@cd arc; make BOARD=arduino_101_sss_factory
+	@cd arc; make BOARD=arduino_101_sss
 
 # Run debug server over JTAG
 .PHONY: debug
@@ -214,6 +223,9 @@ linux: generate
 	rm -f .*.last_build
 	echo "" > .linux.last_build
 	make -f Makefile.linux JS=$(JS) VARIANT=$(VARIANT)
+
+mrproper:
+	make -f Makefile.app mrproper
 
 .PHONY: help
 help:
