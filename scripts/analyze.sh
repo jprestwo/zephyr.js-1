@@ -5,21 +5,21 @@
 # This will output gcc pre-processor defines (-D____) so it can be used in-line
 # during the compile step.
 
-if [ $# -lt 2 ]; then
-    echo "Usage: ./analyze.sh <board> <script>"
+if [ $# -lt 1 ]; then
+    echo "Usage: ./analyze.sh <script>"
     exit
 fi
 
-if [ ! -e $2 ]; then
-    echo "Could not find file $2"
+if [ ! -e $1 ]; then
+    echo "Could not find file $1"
     exit
 fi
 
 MODULES=''
-BOARD=$1
-SCRIPT=$2
 
-echo "# Modules found in $SCRIPT:" > prj.conf.tmp
+SCRIPT=$1
+
+echo "# Modules found in $1:" > prj.conf.tmp
 
 function check_for_require()
 {
@@ -56,6 +56,7 @@ fi
 check_for_require uart
 if [ $? -eq 0 ]; then
     >&2 echo Using module: UART
+<<<<<<< c7a38c42f1cd86cb68dbe11587a3ba8ecbaffbb2
     if [ $BOARD = "arduino_101" ]; then
         echo "CONFIG_EARLY_CONSOLE=y" >> prj.conf.tmp
         echo "CONFIG_CONSOLE_HANDLER=y" >> prj.conf.tmp
@@ -73,8 +74,9 @@ if [ $? -eq 0 ]; then
         echo "CONFIG_GPIO=y" >> prj.conf.tmp
     fi
     echo "CONFIG_UART_INTERRUPT_DRIVEN=y" >> prj.conf.tmp
+=======
+>>>>>>> Revert "[UART] UART implementation (#306)"
     MODULES+=" -DBUILD_MODULE_UART"
-    MODULES+=" -DBUILD_MODULE_BUFFER"
 fi
 check_for_require ble
 if [ $? -eq 0 ]; then
