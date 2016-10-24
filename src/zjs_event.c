@@ -537,7 +537,7 @@ bool zjs_trigger_event_now(jerry_value_t obj,
 
     zjs_edit_callback_handle(callback_id, trigger);
 
-    zjs_call_callback(callback_id);
+    zjs_call_callback(callback_id, trigger->argv, trigger->argc);
 
     return jerry_create_boolean(true);
 }
