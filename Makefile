@@ -16,6 +16,8 @@ VARIANT ?= release
 TRACE ?= off
 # Specify pool malloc or heap malloc
 MALLOC ?= pool
+# Print callback statistics during runtime
+CB_STATS ?= off
 # Make target (linux or zephyr)
 # MAKECMDGOALS is a Make variable that is set to the target your building for.
 TARGET = $(MAKECMDGOALS)
@@ -23,7 +25,7 @@ TARGET = $(MAKECMDGOALS)
 # Build for zephyr, default target
 .PHONY: zephyr
 zephyr: $(PRE_ACTION) analyze generate
-	@make -f Makefile.zephyr BOARD=$(BOARD) KERNEL=$(KERNEL) VARIANT=$(VARIANT) MEM_STATS=$(MEM_STATS)
+	@make -f Makefile.zephyr BOARD=$(BOARD) KERNEL=$(KERNEL) VARIANT=$(VARIANT) MEM_STATS=$(MEM_STATS) CB_STATS=$(CB_STATS)
 
 .PHONY: analyze
 analyze:
@@ -201,7 +203,7 @@ generate: setup
 # Run QEMU target
 .PHONY: qemu
 qemu: $(PRE_ACTION) analyze generate
-	make -f Makefile.zephyr BOARD=qemu_x86 KERNEL=$(KERNEL) MEM_STATS=$(MEM_STATS) qemu
+	make -f Makefile.zephyr BOARD=qemu_x86 KERNEL=$(KERNEL) MEM_STATS=$(MEM_STATS) CB_STATS=$(CB_STATS) qemu
 
 # Builds ARC binary
 .PHONY: arc
@@ -234,7 +236,7 @@ arcgdb:
 linux: $(PRE_ACTION) generate
 	rm -f .*.last_build
 	echo "" > .linux.last_build
-	make -f Makefile.linux JS=$(JS) VARIANT=$(VARIANT)
+	make -f Makefile.linux JS=$(JS) VARIANT=$(VARIANT) CB_STATS=$(CB_STATS)
 
 .PHONY: help
 help:
