@@ -210,7 +210,6 @@ void zjs_timers_process_events()
     update_print_timer();
 #endif
 #endif
-    PRINT("checking timers: tm=%p\n", zjs_timers);
     for (zjs_timer_t *tm = zjs_timers; tm; tm = tm->next) {
         if (tm->completed) {
             delete_timer(tm->callback_id);
