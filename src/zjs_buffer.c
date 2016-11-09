@@ -298,9 +298,13 @@ static jerry_value_t zjs_buffer_write_string(const jerry_value_t function_obj_va
             return zjs_error("zjs_buffer_write_string: encoding arg string is too long");
         }
 
-        char arg4_str[arg4_sz];
-        char utf8_str[4];
+        char arg4_str[arg4_sz + 1];
+        char utf8_str[5];
+
+        jerry_string_to_char_buffer(arg4, (jerry_char_t *)arg4_str, arg4_sz);
+        arg4_str[arg4_sz] = '\0';
         strcpy(utf8_str, "utf8");
+        utf8_str[4] = '\0';
         uint8_t utf8 = strcmp(arg4_str, utf8_str);
 
         if (utf8 != 0) {
