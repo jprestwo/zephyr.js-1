@@ -34,6 +34,12 @@
 
 #define ZJS_MAX_PRINT_SIZE      512
 
+static char example_module[] = "var exampleModule = {};\n"
+                               "exampleModule.helloWorld = function() {\n"
+                               "    print(\"hello world\");\n"
+                               "};\n"
+                               "module.exports.hello = exampleModule;\n";
+
 extern const char *script_gen;
 
 // native eval handler
@@ -97,12 +103,36 @@ int main(int argc, char *argv[])
 #endif
     zjs_init_callbacks();
 
+    jerry_value_t global_obj = jerry_get_global_object();
+    jerry_value_t modules_obj = jerry_create_object();
+    jerry_value_t exports_obj = jerry_create_object();
+
+    zjs_set_property(modules_obj, "exports", exports_obj);
+    zjs_set_property(global_obj, "module", modules_obj);
+
     // initialize modules
     zjs_modules_init();
 
 #ifdef BUILD_MODULE_OCF
     zjs_register_service_routine(NULL, main_poll_routine);
 #endif
+
+    // Todo: find a better solution to disable eval() in JerryScript.
+    // For now, just inject our eval() function in the global space
+    zjs_obj_add_function(global_obj, native_eval_handler, "eval");
+    zjs_obj_add_function(global_obj, native_print_handler, "print");
+
+    jerry_value_t mod_eval = jerry_parse((jerry_char_t *)example_module, strlen(example_module), false);
+    if (jerry_value_has_error_flag(mod_eval)) {
+        PRINT("JerryScript: cannot parse javascript [upper]\n");
+        goto error;
+    }
+
+    jerry_value_t mod_result = jerry_run(mod_eval);
+    if (jerry_value_has_error_flag(mod_result)) {
+        PRINT("JerryScript: cannot run javascript [upper]\n");
+        goto error;
+    }
 
 #ifdef ZJS_LINUX_BUILD
     if (argc > 1) {
@@ -118,13 +148,6 @@ int main(int argc, char *argv[])
             goto error;
         }
     }
-
-    jerry_value_t global_obj = jerry_get_global_object();
-
-    // Todo: find a better solution to disable eval() in JerryScript.
-    // For now, just inject our eval() function in the global space
-    zjs_obj_add_function(global_obj, native_eval_handler, "eval");
-    zjs_obj_add_function(global_obj, native_print_handler, "print");
 
     code_eval = jerry_parse((jerry_char_t *)script, len, false);
     if (jerry_value_has_error_flag(code_eval)) {

@@ -1,6 +1,7 @@
 BOARD ?= arduino_101
 KERNEL ?= micro
 UPDATE ?= exit
+MODULES ?= ""
 
 # pass TRACE=y to trace malloc/free in the ZJS API
 TRACE ?= n
@@ -165,7 +166,14 @@ dfu-all: dfu dfu-arc
 .PHONY: generate
 generate: setup
 	@echo Creating C string from JS application...
-	@./scripts/convert.sh $(JS) src/zjs_script_gen.c
+ifneq ($(MODULES), "")
+	@echo "// External JS Modules" > temp.js
+	@cat $(MODULES) >> temp.js
+	@echo "// JS Application" >> temp.js
+	@cat $(JS) >> temp.js
+endif
+	@./scripts/convert.sh temp.js src/zjs_script_gen.c
+
 
 # Run QEMU target
 .PHONY: qemu
