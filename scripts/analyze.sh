@@ -187,16 +187,13 @@ if [ $? -eq 0 ]; then
         echo "CONFIG_GPIO_QMSI_1_NAME=\"GPIO_1\"" >> prj.conf.tmp
         echo "CONFIG_GPIO_QMSI_1_PRI=2" >> prj.conf.tmp
         echo "CONFIG_SPI=y" >> arc/prj.conf.tmp
-        echo "CONFIG_SPI_DW_ARC_AUX_REGS=y" >> arc/prj.conf.tmp
-        echo "CONFIG_SPI_DW_INTERRUPT_SEPARATED_LINES=y" >> arc/prj.conf.tmp
         echo "CONFIG_BMI160=y" >> arc/prj.conf.tmp
-        echo "CONFIG_BMI160_INIT_PRIORITY=80" >> arc/prj.conf.tmp
         echo "CONFIG_BMI160_NAME=\"bmi160\"" >> arc/prj.conf.tmp
         echo "CONFIG_BMI160_SPI_PORT_NAME=\"SPI_1\"" >> arc/prj.conf.tmp
         echo "CONFIG_BMI160_SLAVE=1" >> arc/prj.conf.tmp
         echo "CONFIG_BMI160_SPI_BUS_FREQ=88" >> arc/prj.conf.tmp
         echo "CONFIG_BMI160_TRIGGER=y" >> arc/prj.conf.tmp
-        echo "CONFIG_BMI160_TRIGGER_OWN_FIBER=y" >> arc/prj.conf.tmp
+        echo "CONFIG_BMI160_TRIGGER_OWN_THREAD=y" >> arc/prj.conf.tmp
     fi
 fi
 

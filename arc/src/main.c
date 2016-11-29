@@ -897,11 +897,6 @@ void main(void)
         }
         tick_count += SLEEP_TICKS;
 #endif
-#ifdef BUILD_MODULE_SENSOR
-        if (accel_poll || gyro_poll) {
-            fetch_sensor(bmi160);
-        }
-#endif
         k_sleep(SLEEP_TICKS);
     }
 
