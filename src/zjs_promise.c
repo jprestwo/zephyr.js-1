@@ -62,6 +62,7 @@ static jerry_value_t promise_then(const jerry_value_t function_obj,
                                    const jerry_value_t argv[],
                                    const jerry_length_t argc)
 {
+    ZJS_PRINT("Calling .then()\n");
     struct promise* handle = NULL;
 
     jerry_value_t promise_obj = zjs_get_property(this, "promise");
@@ -195,4 +196,37 @@ void zjs_reject_promise(jerry_value_t obj, jerry_value_t argv[], uint32_t argc)
     }
 
     jerry_release_value(promise_obj);
+}
+
+static jerry_value_t create_promise(const jerry_value_t function_obj,
+                                    const jerry_value_t this,
+                                    const jerry_value_t argv[],
+                                    const jerry_length_t argc)
+{
+    ZJS_PRINT("Creating promise\n");
+    if (!jerry_value_is_function(argv[0])) {
+        ERR_PRINT("promise parameter must be function\n");
+        return ZJS_UNDEFINED;
+    }
+    jerry_value_t promise_obj = jerry_create_object();
+
+    zjs_make_promise(promise_obj, NULL, NULL);
+
+    zjs_callback_id id = zjs_add_callback_once(argv[0],
+                                               this,
+                                               NULL,
+                                               NULL);
+
+    zjs_signal_callback(id, NULL, 0);
+
+    return promise_obj;
+}
+
+void zjs_init_promises(void)
+{
+    jerry_value_t global_obj = jerry_get_global_object();
+
+    zjs_obj_add_function(global_obj, create_promise, "Promise");
+
+    jerry_release_value(global_obj);
 }

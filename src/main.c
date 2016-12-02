@@ -101,6 +101,7 @@ int main(int argc, char *argv[])
     zjs_sensor_init();
 #endif
     zjs_init_callbacks();
+    zjs_init_promises();
 
     // Add module.exports to global namespace
     jerry_value_t global_obj = jerry_get_global_object();

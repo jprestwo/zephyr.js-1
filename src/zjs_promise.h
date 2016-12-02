@@ -40,4 +40,6 @@ void zjs_fulfill_promise(jerry_value_t obj, jerry_value_t args[], uint32_t argc)
  */
 void zjs_reject_promise(jerry_value_t obj, jerry_value_t args[], uint32_t argc);
 
+void zjs_init_promises(void);
+
 #endif /* __zjs_promises_h__ */
