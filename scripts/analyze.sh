@@ -114,6 +114,20 @@ if check_for_require ocf || check_config_file ZJS_OCF; then
     echo "export ZJS_EVENTS=y" >> zjs.conf.tmp
 fi
 
+if check_for_require dgram || check_config_file ZJS_UDP; then
+    MODULES+=" -DBUILD_MODULE_UDP"
+    MODULES+=" -DBUILD_MODULE_EVENTS"
+    echo "export ZJS_UDP=y" >> zjs.conf.tmp
+    echo "export ZJS_EVENTS=y" >> zjs.conf.tmp
+    echo "CONFIG_NETWORKING=y" >> prj.conf.tmp
+    echo "CONFIG_NETWORKING_WITH_LOGGING=y" >> prj.conf.tmp
+    echo "CONFIG_IP_BUF_RX_SIZE=3" >> prj.conf.tmp
+    echo "CONFIG_IP_BUF_TX_SIZE=2" >> prj.conf.tmp
+    echo "CONFIG_NANO_TIMEOUTS=y" >> prj.conf.tmp
+    echo "CONFIG_NET_TESTING=y" >> prj.conf.tmp
+    echo "CONFIG_NETWORKING_IPV6_NO_ND=y" >> prj.conf.tmp
+fi
+
 if check_for_require gpio || check_config_file ZJS_GPIO; then
     MODULES+=" -DBUILD_MODULE_GPIO"
     echo "CONFIG_GPIO=y" >> prj.conf.tmp

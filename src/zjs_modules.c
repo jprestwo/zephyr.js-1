@@ -26,6 +26,9 @@
 #ifdef BUILD_MODULE_OCF
 #include "zjs_ocf_common.h"
 #endif
+#ifdef BUILD_MODULE_UDP
+#include "zjs_udp.h"
+#endif
 
 #ifndef ZJS_LINUX_BUILD
 #include "zjs_aio.h"
@@ -97,7 +100,10 @@ module_t zjs_modules_array[] = {
     { "performance", zjs_performance_init },
 #endif
 #ifdef BUILD_MODULE_OCF
-    { "ocf", zjs_ocf_init }
+    { "ocf", zjs_ocf_init },
+#endif
+#ifdef BUILD_MODULE_UDP
+    { "dgram", zjs_udp_init }
 #endif
 };
 
