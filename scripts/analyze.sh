@@ -120,12 +120,29 @@ if check_for_require dgram || check_config_file ZJS_UDP; then
     echo "export ZJS_UDP=y" >> zjs.conf.tmp
     echo "export ZJS_EVENTS=y" >> zjs.conf.tmp
     echo "CONFIG_NETWORKING=y" >> prj.conf.tmp
-    echo "CONFIG_NETWORKING_WITH_LOGGING=y" >> prj.conf.tmp
-    echo "CONFIG_IP_BUF_RX_SIZE=3" >> prj.conf.tmp
-    echo "CONFIG_IP_BUF_TX_SIZE=2" >> prj.conf.tmp
-    echo "CONFIG_NANO_TIMEOUTS=y" >> prj.conf.tmp
-    echo "CONFIG_NET_TESTING=y" >> prj.conf.tmp
-    echo "CONFIG_NETWORKING_IPV6_NO_ND=y" >> prj.conf.tmp
+    echo "CONFIG_NET_IPV6=y" >> prj.conf.tmp
+    echo "CONFIG_NET_IPV4=y" >> prj.conf.tmp
+    echo "CONFIG_NET_UDP=y" >> prj.conf.tmp
+    echo "CONFIG_TEST_RANDOM_GENERATOR=y" >> prj.conf.tmp
+    echo "CONFIG_NET_LOG=y" >> prj.conf.tmp
+    echo "CONFIG_NET_SLIP_TAP=y" >> prj.conf.tmp
+    echo "CONFIG_SYS_LOG_SHOW_COLOR=y" >> prj.conf.tmp
+    echo "CONFIG_INIT_STACKS=y" >> prj.conf.tmp
+    echo "CONFIG_PRINTK=y" >> prj.conf.tmp
+    echo "CONFIG_NET_STATISTICS=y" >> prj.conf.tmp
+    echo "CONFIG_NET_NBUF_RX_COUNT=14" >> prj.conf.tmp
+    echo "CONFIG_NET_NBUF_TX_COUNT=14" >> prj.conf.tmp
+    echo "CONFIG_NET_NBUF_DATA_COUNT=30" >> prj.conf.tmp
+    echo "CONFIG_NET_IF_UNICAST_IPV6_ADDR_COUNT=3" >> prj.conf.tmp
+    echo "CONFIG_NET_IF_MCAST_IPV6_ADDR_COUNT=2" >> prj.conf.tmp
+    echo "CONFIG_NET_MAX_CONTEXTS=10" >> prj.conf.tmp
+    echo "CONFIG_NET_SHELL=y" >> prj.conf.tmp
+
+    echo "CONFIG_NET_SAMPLES_IP_ADDRESSES=y" >> prj.conf.tmp
+    echo "CONFIG_NET_SAMPLES_MY_IPV6_ADDR=\"2001:db8::1\"" >> prj.conf.tmp
+    echo "CONFIG_NET_SAMPLES_PEER_IPV6_ADDR=\"2001:db8::2\"" >> prj.conf.tmp
+    echo "CONFIG_NET_SAMPLES_MY_IPV4_ADDR=\"192.0.2.1\"" >> prj.conf.tmp
+    echo "CONFIG_NET_SAMPLES_PEER_IPV4_ADDR=\"192.0.2.2\"" >> prj.conf.tmp
 fi
 
 if check_for_require gpio || check_config_file ZJS_GPIO; then

@@ -1,12 +1,16 @@
 // Copyright (c) 2016, Intel Corporation.
 
 #include <zephyr.h>
-#include <net/ip_buf.h>
-#include <net/net_core.h>
-#include <net/net_socket.h>
-
+#include <sections.h>
+#include <errno.h>
+#include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
+
+#include <net/nbuf.h>
+#include <net/net_if.h>
+#include <net/net_core.h>
+#include <net/net_context.h>
 
 #include "zjs_common.h"
 #include "zjs_util.h"
@@ -18,6 +22,9 @@
 /* admin-local, dynamically allocated multicast address */
 #define MCAST_IPADDR6 { { { 0xff, 0x84, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0x2 } } }
 
+#define MY_IP4ADDR { { { 192, 0, 2, 1 } } }
+
+static struct in_addr in4addr_my = MY_IP4ADDR;
 
 typedef enum {
     TYPE_UDP4,
@@ -30,130 +37,38 @@ typedef struct {
     struct net_context *mcast_recv;
 } udp_socket;
 
-// print an IPv6 Zephyr structure in human readable format
-static void print_ip6(struct in6_addr* ip6_addr)
+static void udp_recv(struct net_context *context,
+                     struct net_buf *buf,
+                     int status,
+                     void *user_data)
 {
-    int i;
-    for (i = 0; i < 8; i++) {
-        ZJS_PRINT("%04x", ip6_addr->in6_u.u6_addr16[i]);
-        if (i != 7) {
-            ZJS_PRINT(":");
-        }
-    }
-    ZJS_PRINT("\n");
+    ZJS_PRINT("GOT DATA!\n");
 }
 
-/*
- * Get a 16 bit hex pair from a string
- */
-static uint16_t hex_to_int(char* hex)
+static inline bool get_context(struct net_context **udp_recv4)
 {
-    char digits[4];
-    uint8_t len = 0;
-    char* i = hex;
-    uint16_t ret = 0;
-
-    // get/set the number of digits
-    while (*i != ':' && *i != '\0') {
-        digits[len++] = *i;
-        i++;
+    int ret;
+#if defined(CONFIG_NET_IPV4) && defined(CONFIG_NET_UDP)
+    ret = net_context_get(AF_INET, SOCK_DGRAM, IPPROTO_UDP, udp_recv4);
+    if (ret < 0) {
+        ERR_PRINT("Cannot get network context for IPv4 UDP (%d)",
+            ret);
+        return false;
     }
+#endif
 
-    // iterate over the digits and convert them to a 16 bit number
-    int j;
-    for (j = 0; j < len; j++) {
-        uint8_t cur = 0;
-        if (digits[j] >= '0' && digits[j] <= '9') {
-            cur = digits[j] - '0';
-        } else if (digits[j] >= 'a' && digits[j] <= 'f') {
-            cur = digits[j] - 'a' + 10;
-        } else if (digits[j] >= 'A' && digits[j] <= 'F') {
-            cur = digits[j] - 'A' + 10;
-        }
-        ret = (ret << 4) | (cur & 0xF);
-    }
-
-    return ret;
+    return true;
 }
 
-// convert an IPv6 string to a Zephyr in6_addr struct
-static void zjs_ip6_to_u16(const char* ip, struct in6_addr* in6addr)
+static void setup_udp_recv(struct net_context *udp_recv4)
 {
-    uint8_t idx = 0;
-    memset(&in6addr->in6_u.u6_addr16, 0, sizeof(uint16_t) * 8);
-    char* i = (char*)ip;
-
-    // Set the first 16 bit pair
-    in6addr->in6_u.u6_addr16[idx++] = hex_to_int(i);
-
-    // start by getting as many 16 bit pairs until we find ::
-    // if :: is never found then we have a un-shortened IPv6 string
-    while (*i != '\0') {
-        if (*i == ':') {
-            if (*(i + 1) == ':') {
-                // found ::, now fill in the end of the address in reverse
-                goto Reverse;
-            } else {
-                in6addr->in6_u.u6_addr16[idx++] = hex_to_int(i + 1);
-            }
-        }
-        i++;
+    int ret;
+#if defined(CONFIG_NET_IPV4)
+    ret = net_context_recv(udp_recv4, udp_recv, 0, NULL);
+    if (ret < 0) {
+        ERR_PRINT("Cannot receive IPv4 UDP packets");
     }
-    return;
-
-Reverse:
-    idx = 7;
-    uint8_t ridx = strlen(ip);
-    char* j = (char*)ip + ridx - 1;
-    // start at the end, back-filling the remaining 16 bit pairs until we get
-    // to :: again. Anything in between is all zero's (set by memset)
-    while (ridx--) {
-        if (*j == ':' && *(j - 1) == ':') {
-            in6addr->in6_u.u6_addr16[idx--] = hex_to_int(j + 1);
-            break;
-        } else if (*j == ':') {
-            in6addr->in6_u.u6_addr16[idx--] = hex_to_int(j + 1);
-        }
-        j--;
-    }
-    return;
-}
-
-// convert an IPv4 string to a uint32_t
-static void zjs_ip4_to_u32(const char* ip, struct in_addr* in4addr)
-{
-    uint8_t dots[3];
-    int one, two, three, four;
-    char* i = (char*)ip;
-    uint8_t cnt = 0;
-    while (*i != '\0') {
-        if (*i == '.') {
-            dots[cnt++] = i - ip + 1;
-            *i = '\0';
-        }
-        i++;
-    }
-    one = atoi(ip);
-    two = atoi(ip + dots[0]);
-    three = atoi(ip + dots[1]);
-    four = atoi(ip + dots[2]);
-
-    in4addr->in4_u.u4_addr32[0] = ((uint8_t)one << 24) |
-                                  ((uint8_t)two << 16) |
-                                  ((uint8_t)three << 8) |
-                                  ((uint8_t)four);
-}
-
-static void udp_recv(void* handle)
-{
-    udp_socket* sock = (udp_socket*)handle;
-    struct net_buf *buf;
-
-    buf = net_receive(sock->udp_recv, 0);
-    if (buf) {
-        ZJS_PRINT("GOT DATA!\n");
-        return;
-    }
+#endif /* CONFIG_NET_IPV4 */
 }
 
 static jerry_value_t udp_address(const jerry_value_t function_obj,
@@ -169,6 +84,7 @@ static jerry_value_t udp_bind_socket(const jerry_value_t function_obj,
                                      const jerry_value_t argv[],
                                      const jerry_length_t argc)
 {
+    int ret;
     uint32_t size = 40;
     char ip[size];
     uint32_t port = 0;
@@ -207,43 +123,47 @@ static jerry_value_t udp_bind_socket(const jerry_value_t function_obj,
         return ZJS_UNDEFINED;
     }
 
-    struct net_addr mcast_addr;
-    struct net_addr any_addr;
-    struct net_addr my_addr;
+#if defined(CONFIG_NET_IPV4)
+    struct sockaddr_in my_addr4 = { 0 };
+#endif
 
-    if (sock_handle->type == TYPE_UDP6) {
-        const struct in6_addr in6addr_any = IN6ADDR_ANY_INIT;
+#if defined(CONFIG_NET_IPV4)
+    my_addr4.sin_family = AF_INET;
+    my_addr4.sin_port = htons(4242);
+#endif
 
-        any_addr.in6_addr = in6addr_any;
-        any_addr.family = AF_INET6;
+    ZJS_PRINT("(bind)context=%p\n", sock_handle->udp_recv);
 
-        zjs_ip6_to_u16(ip, &my_addr.in6_addr);
-        my_addr.family = AF_INET6;
-    } else {
-        const struct in_addr in4addr_any = { { { 0 } } };
-
-        any_addr.in_addr = in4addr_any;
-        any_addr.family = AF_INET;
-
-        zjs_ip4_to_u32(ip, &my_addr.in_addr);
-        my_addr.family = AF_INET;
-
-        ZJS_PRINT("IP Address: 0x%08x\n", my_addr.in_addr.in4_u.u4_addr32[0]);
+    ret = net_context_bind(sock_handle->udp_recv, (struct sockaddr *)&my_addr4,
+            sizeof(struct sockaddr_in));
+    if (ret < 0) {
+        ERR_PRINT("Cannot bind IPv4 UDP port %d (%d)",
+                ntohs(my_addr4.sin_port), ret);
+        return false;
     }
 
-    net_init();
+    printk("addr=%08x\n", my_addr4.sin_addr.in4_u.u4_addr32[0]);
+    printk("port=%u\n", ntohs(my_addr4.sin_port));
 
-    sock_handle->udp_recv = net_context_get(IPPROTO_UDP,
-                                            &any_addr, 0,
-                                            &my_addr, port);
-    if (!sock_handle->udp_recv) {
-        ZJS_PRINT("cannot get network context\n");
-        return ZJS_UNDEFINED;
-    }
-
-    ZJS_PRINT("binding %s to port %u\n", ip, port);
+    setup_udp_recv(sock_handle->udp_recv);
 
     return ZJS_UNDEFINED;
+}
+
+static inline void init_app(void)
+{
+
+#if defined(CONFIG_NET_IPV4)
+#if defined(CONFIG_NET_DHCPV4)
+    net_dhcpv4_start(net_if_get_default());
+#else
+    if (net_addr_pton(AF_INET, "192.0.2.1", (struct sockaddr *)&in4addr_my) < 0) {
+        ERR_PRINT("Invalid IPv4 address %s", "192.0.2.1");
+    }
+
+    net_if_ipv4_addr_add(net_if_get_default(), &in4addr_my, NET_ADDR_MANUAL, 0);
+#endif /* CONFIG_NET_DHCPV4 */
+#endif /* CONFIG_NET_IPV4 */
 }
 
 static jerry_value_t udp_create_socket(const jerry_value_t function_obj,
@@ -312,21 +232,8 @@ static jerry_value_t udp_create_socket(const jerry_value_t function_obj,
     if (argc > 1) {
         zjs_add_event_listener(socket, "message", argv[1]);
     }
-
-#if 0
-    ZJS_PRINT("0x%08x\n", zjs_ip4_to_u32("192.168.0.1"));
-    ZJS_PRINT("\n\n");
-    struct in6_addr ip6_addr;
-
-    zjs_ip6_to_u16("ffff:0000:0000:0000:0000:1111:1234:5432", &ip6_addr);
-    print_ip6(&ip6_addr);
-    zjs_ip6_to_u16("ffff::1111:1234:5432", &ip6_addr);
-    print_ip6(&ip6_addr);
-    zjs_ip6_to_u16("ffff::0001:1:0011", &ip6_addr);
-    print_ip6(&ip6_addr);
-#endif
-
-    zjs_register_service_routine(sock_handle, udp_recv);
+    init_app();
+    get_context(&sock_handle->udp_recv);
 
     return socket;
 }

@@ -12,4 +12,4 @@ server.on('message', function(message, remote) {
     console.log(remote.address + ':' + remote.port +' - ' + message);
 });
 
-server.bind(12345, '0.0.0.0');
+server.bind(4242, '192.0.2.1');
