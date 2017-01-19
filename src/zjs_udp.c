@@ -11,6 +11,7 @@
 #include <net/net_if.h>
 #include <net/net_core.h>
 #include <net/net_context.h>
+#include <net/net_mgmt.h>
 
 #include "zjs_common.h"
 #include "zjs_util.h"
@@ -154,15 +155,13 @@ static inline void init_app(void)
 {
 
 #if defined(CONFIG_NET_IPV4)
-#if defined(CONFIG_NET_DHCPV4)
-    net_dhcpv4_start(net_if_get_default());
-#else
+    //net_dhcpv4_start(net_if_get_default());
+
     if (net_addr_pton(AF_INET, "192.0.2.1", (struct sockaddr *)&in4addr_my) < 0) {
         ERR_PRINT("Invalid IPv4 address %s", "192.0.2.1");
     }
 
     net_if_ipv4_addr_add(net_if_get_default(), &in4addr_my, NET_ADDR_MANUAL, 0);
-#endif /* CONFIG_NET_DHCPV4 */
 #endif /* CONFIG_NET_IPV4 */
 }
 

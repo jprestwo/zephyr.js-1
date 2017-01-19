@@ -119,6 +119,13 @@ if check_for_require dgram || check_config_file ZJS_UDP; then
     MODULES+=" -DBUILD_MODULE_EVENTS"
     echo "export ZJS_UDP=y" >> zjs.conf.tmp
     echo "export ZJS_EVENTS=y" >> zjs.conf.tmp
+    echo "CONFIG_NET_DHCPV4=y" >> zjs.conf.tmp
+    echo "CONFIG_NET_DEBUG_CORE=y" >> zjs.conf.tmp
+    echo "CONFIG_NET_DEBUG_IF=y" >> zjs.conf.tmp
+    echo "CONFIG_NET_IF_UNICAST_IPV4_ADDR_COUNT=1" >> zjs.conf.tmp
+    echo "CONFIG_NET_DEBUG_DHCPV4=y" >> zjs.conf.tmp
+    echo "CONFIG_NET_MGMT=y" >> zjs.conf.tmp
+    echo "CONFIG_NET_MGMT_EVENT=y" >> zjs.conf.tmp
     echo "CONFIG_NETWORKING=y" >> prj.conf.tmp
     echo "CONFIG_NET_IPV6=y" >> prj.conf.tmp
     echo "CONFIG_NET_IPV4=y" >> prj.conf.tmp
@@ -137,6 +144,23 @@ if check_for_require dgram || check_config_file ZJS_UDP; then
     echo "CONFIG_NET_IF_MCAST_IPV6_ADDR_COUNT=2" >> prj.conf.tmp
     echo "CONFIG_NET_MAX_CONTEXTS=10" >> prj.conf.tmp
     echo "CONFIG_NET_SHELL=y" >> prj.conf.tmp
+
+    echo "CONFIG_NET_ARP=y" >> prj.conf.tmp
+    echo "CONFIG_SLIP_TAP=y" >> prj.conf.tmp
+    echo "CONFIG_NET_DHCPV4=y" >> prj.conf.tmp
+    echo "CONFIG_NET_BUF=y" >> prj.conf.tmp
+    echo "CONFIG_NET_IF_UNICAST_IPV4_ADDR_COUNT=1" >> prj.conf.tmp
+
+    echo "CONFIG_SYS_LOG=y" >> prj.conf.tmp
+    echo "CONFIG_NET_DEBUG_CORE=y" >> prj.conf.tmp
+    echo "CONFIG_NET_DEBUG_IF=y" >> prj.conf.tmp
+    echo "CONFIG_NET_DEBUG_DHCPV4=y" >> prj.conf.tmp
+    echo "CONFIG_SLIP_DEBUG=n" >> prj.conf.tmp
+    echo "CONFIG_SLIP_STATISTICS=n" >> prj.conf.tmp
+    echo "CONFIG_NET_DEBUG_ARP=y" >> prj.conf.tmp
+    echo "CONFIG_NET_DEBUG_L2_ETHERNET=y" >> prj.conf.tmp
+    echo "CONFIG_NET_MGMT=y" >> prj.conf.tmp
+    echo "CONFIG_NET_MGMT_EVENT=y" >> prj.conf.tmp
 
     echo "CONFIG_NET_SAMPLES_IP_ADDRESSES=y" >> prj.conf.tmp
     echo "CONFIG_NET_SAMPLES_MY_IPV6_ADDR=\"2001:db8::1\"" >> prj.conf.tmp
