@@ -119,6 +119,7 @@ if check_for_require dgram || check_config_file ZJS_UDP; then
     MODULES+=" -DBUILD_MODULE_EVENTS"
     echo "export ZJS_UDP=y" >> zjs.conf.tmp
     echo "export ZJS_EVENTS=y" >> zjs.conf.tmp
+    buffer=true;
     echo "CONFIG_NET_DHCPV4=y" >> zjs.conf.tmp
     echo "CONFIG_NET_DEBUG_CORE=y" >> zjs.conf.tmp
     echo "CONFIG_NET_DEBUG_IF=y" >> zjs.conf.tmp

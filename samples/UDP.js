@@ -9,7 +9,7 @@ server.on('listening', function() {
 });
 
 server.on('message', function(message, remote) {
-    console.log(remote.address + ':' + remote.port +' - ' + message);
+    console.log("Message from " + remote.address + ':' + remote.port +' - ' + message.toString('ascii'));
 });
 
 server.bind(4242, '192.0.2.1');
