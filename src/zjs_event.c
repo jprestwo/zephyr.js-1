@@ -40,26 +40,61 @@ void post_event(void* h, jerry_value_t* ret_val)
     }
 }
 
+static uint32_t num_events(jerry_value_t emitter)
+{
+    jerry_value_t val = zjs_get_property(emitter, "numEvents");
+    if (!jerry_value_is_number(val)) {
+        ERR_PRINT("emitter had no numEvents property\n");
+        return 0;
+    }
+    uint32_t num = jerry_get_number_value(val);
+    jerry_release_value(val);
+    return num;
+}
+
+static uint32_t max_listeners(jerry_value_t emitter)
+{
+    jerry_value_t val = zjs_get_property(emitter, "maxListeners");
+    if (!jerry_value_is_number(val)) {
+        ERR_PRINT("emitter had no maxListeners property\n");
+        return 0;
+    }
+    uint32_t num = jerry_get_number_value(val);
+    jerry_release_value(val);
+    return num;
+}
+
 void zjs_add_event_listener(jerry_value_t obj, const char* event,
                             jerry_value_t listener)
 {
     event_t *ev;
 
     jerry_value_t event_emitter = zjs_get_property(obj, HIDDEN_PROP("event"));
+    if (!jerry_value_is_object(event_emitter)) {
+        ERR_PRINT("no event '%s' found\n", event);
+        return;
+    }
+    uint32_t num_events = num_events(event_emitter);
+    uint32_t max_listeners = max_listeners(event_emitter);
+
     if (!jerry_get_object_native_handle(event_emitter, (uintptr_t*)&ev)) {
         jerry_release_value(event_emitter);
         ERR_PRINT("native handle not found\n");
         return;
     }
-    jerry_release_value(event_emitter);
 
-    if (ev->num_events >= ev->max_listeners) {
+    if (num_events >= max_listeners) {
+        jerry_release_value(event_emitter);
         ERR_PRINT("max listeners reached\n");
         return;
     }
 
+    jerry_value_t ev_map = zjs_get_property(event_emitter, "map");
+    jerry_value_t event_obj = zjs_get_property(ev_map, event);
+    jerry_release_value(event_emitter);
+    jerry_release_value(ev_map);
+
     // Event object to hold callback ID and eventually listener arguments
-    jerry_value_t event_obj = zjs_get_property(ev->map, event);
     if (!jerry_value_is_object(event_obj)) {
         jerry_release_value(event_obj);
         event_obj = jerry_create_object();
@@ -94,16 +129,14 @@ static jerry_value_t add_listener(const jerry_value_t function_obj,
     jerry_value_t rval = jerry_acquire_value(this);
     if (!jerry_value_is_string(argv[0]) ||
         !jerry_value_is_function(argv[1])) {
-        ERR_PRINT("invalid argument");
-        return rval;
+        return zjs_error("invalid argument");
     }
 
     jerry_size_t size = ZJS_MAX_EVENT_NAME_SIZE;
     char name[size];
     zjs_copy_jstring(argv[0], name, &size);
     if (!size) {
-        ERR_PRINT("event name is too long\n");
-        return rval;
+        return zjs_error("event name is too long");
     }
 
     zjs_add_event_listener(this, name, argv[1]);
@@ -116,19 +149,14 @@ static jerry_value_t emit_event(const jerry_value_t function_obj,
                                 const jerry_length_t argc)
 {
     if (!jerry_value_is_string(argv[0])) {
-        ERR_PRINT("parameter is not a string\n");
-        return jerry_create_boolean(false);
+        return zjs_error("parameter is not a string");
     }
 
     jerry_size_t size = ZJS_MAX_EVENT_NAME_SIZE;
     char event[size];
     zjs_copy_jstring(argv[0], event, &size);
     if (!size) {
-        ERR_PRINT("event name is too long\n");
-        // FIXME: This function is supposed to return a bool; false probably
-        //   makes sense here because there are no listeners for that too-long
-        //   event name. Otherwise, at least return an error, not this?
-        return jerry_acquire_value(this);
+        return zjs_error("event name is too long");
     }
 
     // FIXME: This is supposed to return true if there were listeners; false,
@@ -147,34 +175,30 @@ static jerry_value_t remove_listener(const jerry_value_t function_obj,
     jerry_value_t event_emitter = zjs_get_property(this, HIDDEN_PROP("event"));
     if (!jerry_get_object_native_handle(event_emitter, (uintptr_t*)&ev)) {
         jerry_release_value(event_emitter);
-        ERR_PRINT("native handle not found\n");
-        return jerry_acquire_value(this);
+        return zjs_error("native handle not found");
     }
     jerry_release_value(event_emitter);
 
     if (!jerry_value_is_string(argv[0])) {
-        ERR_PRINT("event name must be first parameter\n");
-        return jerry_acquire_value(this);
+        return zjs_error("event name must be first parameter");
     }
     if (!jerry_value_is_function(argv[1])) {
-        ERR_PRINT("event listener must be second parameter\n");
-        return jerry_acquire_value(this);
+        return zjs_error("event listener must be second parameter");
     }
 
     jerry_size_t size = ZJS_MAX_EVENT_NAME_SIZE;
     char event[size];
     zjs_copy_jstring(argv[0], event, &size);
     if (!size) {
-        ERR_PRINT("event name is too long\n");
-        return jerry_acquire_value(this);
+        return zjs_error("event name is too long");
     }
 
     // Event object to hold callback ID and eventually listener arguments
     jerry_value_t event_obj = zjs_get_property(ev->map, event);
     if (!jerry_value_is_object(event_obj)) {
         jerry_release_value(event_obj);
-        DBG_PRINT("event object not found for '%s'\n", event);
-        return jerry_acquire_value(this);
+        ERR_PRINT("event object not found\n");
+        return ZJS_UNDEFINED;
     }
 
     int32_t callback_id = -1;
@@ -203,30 +227,27 @@ static jerry_value_t remove_all_listeners(const jerry_value_t function_obj,
     jerry_value_t event_emitter = zjs_get_property(this, HIDDEN_PROP("event"));
     if (!jerry_get_object_native_handle(event_emitter, (uintptr_t*)&ev)) {
         jerry_release_value(event_emitter);
-        ERR_PRINT("native handle not found\n");
-        return jerry_acquire_value(this);
+        return zjs_error("native handle not found");
     }
     jerry_release_value(event_emitter);
 
     if (!jerry_value_is_string(argv[0])) {
-        ERR_PRINT("event name must be first parameter\n");
-        return jerry_acquire_value(this);
+        return zjs_error("event name must be first parameter");
     }
 
     jerry_size_t size = ZJS_MAX_EVENT_NAME_SIZE;
     char event[size];
     zjs_copy_jstring(argv[0], event, &size);
     if (!size) {
-        ERR_PRINT("event name is too long\n");
-        return jerry_acquire_value(this);
+        return zjs_error("event name is too long");
     }
 
     // Event object to hold callback ID and eventually listener arguments
     jerry_value_t event_obj = zjs_get_property(ev->map, event);
     if (!jerry_value_is_object(event_obj)) {
         jerry_release_value(event_obj);
-        DBG_PRINT("event object not found for '%s'\n", event);
-        return jerry_acquire_value(this);
+        ERR_PRINT("event object not found\n");
+        return ZJS_UNDEFINED;
     }
 
     int32_t callback_id = -1;
@@ -246,6 +267,9 @@ static jerry_value_t remove_all_listeners(const jerry_value_t function_obj,
 
     jerry_release_value(id_prop);
     jerry_release_value(event_obj);
+
+    zjs_remove_callback(callback_id);
+
     return jerry_acquire_value(this);
 }
 
@@ -269,11 +293,14 @@ static jerry_value_t get_event_names(const jerry_value_t function_obj,
     event_t *ev;
     event_names_t names;
 
+    if (argc) {
+        return zjs_error("invalid parameters");
+    }
+
     jerry_value_t event_emitter = zjs_get_property(this, HIDDEN_PROP("event"));
     if (!jerry_get_object_native_handle(event_emitter, (uintptr_t*)&ev)) {
         jerry_release_value(event_emitter);
-        ERR_PRINT("native handle not found\n");
-        return ZJS_UNDEFINED;
+        return zjs_error("native handle not found");
     }
     jerry_release_value(event_emitter);
 
@@ -292,11 +319,13 @@ static jerry_value_t get_max_listeners(const jerry_value_t function_obj,
 {
     event_t *ev;
 
+    if (argc) {
+        return zjs_error("invalid arguments");
+    }
     jerry_value_t event_emitter = zjs_get_property(this, HIDDEN_PROP("event"));
     if (!jerry_get_object_native_handle(event_emitter, (uintptr_t*)&ev)) {
         jerry_release_value(event_emitter);
-        ERR_PRINT("native handle not found\n");
-        return jerry_create_number(DEFAULT_MAX_LISTENERS);
+        return zjs_error("native handle not found");
     }
     jerry_release_value(event_emitter);
     return jerry_create_number(ev->max_listeners);
@@ -312,16 +341,18 @@ static jerry_value_t set_max_listeners(const jerry_value_t function_obj,
     jerry_value_t event_emitter = zjs_get_property(this, HIDDEN_PROP("event"));
     if (!jerry_get_object_native_handle(event_emitter, (uintptr_t*)&ev)) {
         jerry_release_value(event_emitter);
-        ERR_PRINT("native handle not found\n");
-        return jerry_acquire_value(this);
+        return zjs_error("native handle not found");
     }
     jerry_release_value(event_emitter);
 
     if (!jerry_value_is_number(argv[0])) {
-        ERR_PRINT("max listeners count must be first parameter\n");
-        return jerry_acquire_value(this);
+        return zjs_error("max listeners count must be first parameter");
     }
-    ev->max_listeners = (uint32_t)jerry_get_number_value(argv[0]);
+    double num = jerry_get_number_value(argv[0]);
+    if (num < 0) {
+        return zjs_error("max listener value must be a positive integer");
+    }
+    ev->max_listeners = (uint32_t)num;
 
     return jerry_acquire_value(this);
 }
@@ -336,29 +367,26 @@ static jerry_value_t get_listener_count(const jerry_value_t function_obj,
     jerry_value_t event_emitter = zjs_get_property(this, HIDDEN_PROP("event"));
     if (!jerry_get_object_native_handle(event_emitter, (uintptr_t*)&ev)) {
         jerry_release_value(event_emitter);
-        ERR_PRINT("native handle not found\n");
-        return jerry_create_number(0);
+        return zjs_error("native handle not found\n");
     }
     jerry_release_value(event_emitter);
 
     if (!jerry_value_is_string(argv[0])) {
-        ERR_PRINT("event name must be first parameter\n");
-        return jerry_create_number(0);
+        return zjs_error("event name must be first parameter");
     }
 
     jerry_size_t size = ZJS_MAX_EVENT_NAME_SIZE;
     char event[size];
     zjs_copy_jstring(argv[0], event, &size);
     if (!size) {
-        ERR_PRINT("event name is too long\n");
-        return jerry_acquire_value(this);
+        return zjs_error("event name is too long");
     }
 
     // Event object to hold callback ID and eventually listener arguments
     jerry_value_t event_obj = zjs_get_property(ev->map, event);
     if (!jerry_value_is_object(event_obj)) {
-        DBG_PRINT("event object not found for '%s'\n", event);
-        return jerry_create_number(0);
+        ERR_PRINT("event object not found\n");
+        return ZJS_UNDEFINED;
     }
 
     int32_t callback_id = -1;
@@ -387,29 +415,25 @@ static jerry_value_t get_listeners(const jerry_value_t function_obj,
     jerry_value_t event_emitter = zjs_get_property(this, HIDDEN_PROP("event"));
     if (!jerry_get_object_native_handle(event_emitter, (uintptr_t*)&ev)) {
         jerry_release_value(event_emitter);
-        ERR_PRINT("native handle not found\n");
-        return ZJS_UNDEFINED;
+        return zjs_error("native handle not found");
     }
     jerry_release_value(event_emitter);
 
     if (!jerry_value_is_string(argv[0])) {
-        ERR_PRINT("event name must be first parameter\n");
-        return ZJS_UNDEFINED;
+        return zjs_error("event name must be first parameter");
     }
 
     jerry_size_t size = ZJS_MAX_EVENT_NAME_SIZE;
     char event[size];
     zjs_copy_jstring(argv[0], event, &size);
     if (!size) {
-        ERR_PRINT("event name is too long\n");
-        return jerry_acquire_value(this);
+        return zjs_error("event name is too long");
     }
 
     // Event object to hold callback ID and eventually listener arguments
     jerry_value_t event_obj = zjs_get_property(ev->map, event);
     if (!jerry_value_is_object(event_obj)) {
-        DBG_PRINT("event object not found for '%s'\n", event);
-        return ZJS_UNDEFINED;
+        return zjs_error("event object not found");
     }
 
     int32_t callback_id = -1;
@@ -610,6 +634,9 @@ jerry_value_t zjs_event_init()
     };
     zjs_event_emitter_prototype = jerry_create_object();
     zjs_obj_add_functions(zjs_event_emitter_prototype, array);
+    zjs_obj_add_number(zjs_event_emitter_prototype,
+                       (double)DEFAULT_MAX_LISTENERS,
+                       "defaultMaxListeners");
 
     return jerry_create_external_function(event_constructor);
 }

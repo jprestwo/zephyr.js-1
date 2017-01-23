@@ -44,8 +44,9 @@ expectThrow("event: get max of listeners on event named 'value'", function () {
     eventEmitter.getMaxListeners("value");
 });
 
-var defaultNum = eventEmitter.getMaxListeners();
-assert(defaultNum === 0, "event: default number of listeners");
+var defaultNum = eventEmitter.defaultMaxListeners;
+var maxNum = eventEmitter.getMaxListeners();
+assert(defaultNum === maxNum, "event: default number of listeners");
 
 var SetlistenersNum = 20;
 eventEmitter.setMaxListeners(SetlistenersNum);
