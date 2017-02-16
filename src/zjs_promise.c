@@ -40,11 +40,13 @@ static jerry_value_t null_function(const jerry_value_t function_obj,
 
 static void post_promise(void* h, jerry_value_t* ret_val)
 {
+
     zjs_promise_t *handle = (zjs_promise_t *)h;
     if (handle) {
         if (handle->post) {
             handle->post(handle->user_handle);
         }
+        ZJS_PRINT("calling post_promise, handle=%p\n", handle);
         jerry_release_value(handle->then);
         jerry_release_value(handle->catch);
         jerry_release_value(handle->this);
@@ -65,8 +67,10 @@ static jerry_value_t promise_then(const jerry_value_t function_obj,
     jerry_release_value(promise_obj);
     if (jerry_value_is_function(argv[0])) {
         if (handle) {
+            ZJS_PRINT("(before)handle->then: %u\n", handle->then);
             jerry_release_value(handle->then);
             handle->then = jerry_acquire_value(argv[0]);
+            ZJS_PRINT("(after)handle->then: %u\n", handle->then);
             zjs_edit_js_func(handle->then_id, handle->then);
             handle->then_set = 1;
         }
@@ -91,13 +95,20 @@ static jerry_value_t promise_catch(const jerry_value_t function_obj,
     jerry_release_value(promise_obj);
     if (handle) {
         if (jerry_value_is_function(argv[0])) {
+            ZJS_PRINT("(before)handle->catch: %u\n", handle->catch);
             jerry_release_value(handle->catch);
             handle->catch = jerry_acquire_value(argv[0]);
+            ZJS_PRINT("(after)handle->catch: %u\n", handle->catch);
             zjs_edit_js_func(handle->catch_id, handle->catch);
             handle->catch_set = 1;
         }
     }
     return ZJS_UNDEFINED;
+}
+
+static void free_promise(const uintptr_t native_p)
+{
+    ZJS_PRINT("\n\n *** Freeing promise\n");
 }
 
 void zjs_make_promise(jerry_value_t obj, zjs_post_promise_func post,
@@ -108,7 +119,7 @@ void zjs_make_promise(jerry_value_t obj, zjs_post_promise_func post,
 
     zjs_obj_add_function(obj, promise_then, "then");
     zjs_obj_add_function(obj, promise_catch, "catch");
-    jerry_set_object_native_handle(promise_obj, (uintptr_t)new, NULL);
+    jerry_set_object_native_handle(promise_obj, (uintptr_t)new, free_promise);
 
     new->user_handle = handle;
     new->post = post;
