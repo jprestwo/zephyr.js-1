@@ -15,6 +15,7 @@ static jerry_value_t test_promise(const jerry_value_t function_obj,
                                   const jerry_length_t argc)
 {
     jerry_value_t promise = jerry_create_object();
+
     ZJS_PRINT("Testing promise, object = %u, count = %u\n", promise, count);
 
     zjs_make_promise(promise, NULL, NULL);
@@ -26,7 +27,7 @@ static jerry_value_t test_promise(const jerry_value_t function_obj,
         ZJS_PRINT("Rejecting\n");
         zjs_reject_promise(promise, NULL, 0);
     }
-    //toggle = (toggle) ? 0 : 1;
+    toggle = (toggle) ? 0 : 1;
     count++;
 
     return promise;
