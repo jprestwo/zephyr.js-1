@@ -54,7 +54,7 @@ static jerry_value_t promise_then(const jerry_value_t function_obj,
         }
 
         // Return the promise so it can be used by catch()
-        return this;
+        return jerry_acquire_value(this);
     } else {
         return ZJS_UNDEFINED;
     }
@@ -77,12 +77,7 @@ static jerry_value_t promise_catch(const jerry_value_t function_obj,
             handle->catch_set = 1;
         }
     }
-    return ZJS_UNDEFINED;
-}
-
-static void free_promise(const uintptr_t native_p)
-{
-    ZJS_PRINT("\n\n *** Freeing promise\n");
+    return jerry_acquire_value(this);
 }
 
 void zjs_make_promise(jerry_value_t obj, zjs_post_promise_func post,
@@ -94,7 +89,7 @@ void zjs_make_promise(jerry_value_t obj, zjs_post_promise_func post,
     zjs_obj_add_function(obj, promise_then, "then");
     zjs_obj_add_function(obj, promise_catch, "catch");
 
-    jerry_set_object_native_handle(promise_obj, (uintptr_t)new, free_promise);
+    jerry_set_object_native_handle(promise_obj, (uintptr_t)new, NULL);
 
     new->user_handle = handle;
     new->post = post;
