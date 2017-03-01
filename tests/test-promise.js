@@ -1,3 +1,5 @@
+// Copyright (c) 2017, Intel Corporation.
+
 var test = require('test_promise');
 
 var sync_toggle = 0;
@@ -7,13 +9,13 @@ var sync_rejected = false;
 var async_fulfilled = false;
 var async_rejected = false;
 
-
 var sync_int = setInterval(function() {
     console.log("calling promise");
     var p = test.test_promise();
     p.then(function() {
         console.log("fulfilled sync");
         sync_fulfilled = true;
+        clearInterval(sync_int);
     }).catch(function() {
         console.log("rejected sync");
         sync_rejected = true;
@@ -26,6 +28,7 @@ var async_int = setInterval(function() {
     p.then(function() {
         console.log("fulfilled async");
         async_fulfilled = true;
+        clearInterval(async_int);
     }).catch(function() {
         console.log("rejected async");
         async_rejected = true;
@@ -41,8 +44,6 @@ var async_int = setInterval(function() {
 }, 200);
 
 setTimeout(function() {
-    clearInterval(sync_int);
-    clearInterval(async_int);
     if (sync_fulfilled && sync_rejected && async_fulfilled && async_rejected) {
         console.log("\033[1m\033[32mPASS\033[0m");
     } else {

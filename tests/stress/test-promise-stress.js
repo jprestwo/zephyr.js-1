@@ -1,3 +1,5 @@
+// Copyright (c) 2017, Intel Corporation.
+
 var test = require('test_promise');
 
 var sync_toggle = 0;
