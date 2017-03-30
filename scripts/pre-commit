@@ -1,0 +1,81 @@
+#!/bin/bash
+status=0
+
+function try_command() {
+    LABEL=$1
+    shift
+
+    # run the command
+    $*
+    CODE=$?
+    if [ $CODE -ne 0 ]; then
+        echo Error: Failed in $LABEL  with code $CODE!
+        return $CODE
+    fi
+    echo Success: $LABEL
+    return 0
+}
+
+function check_copyright() {
+    SRCFILES=$(find arc modules samples src tests | grep -v outdir | grep "\.js$\|\.[ch]$" | sort)
+
+    YEAR=$(date +%G)
+    RVAL=0
+
+    NAMES=$(git diff --cached --name-only)
+
+    # find intersection of NAMES and SRCFILES (requires sorted lists)
+    MATCHES=$(comm -12 <(echo $NAMES | tr ' ' '\n' | sort) <(echo $SRCFILES | tr ' ' '\n'))
+
+    # assist Intel contributors by reminding them to update copyrights
+    if [ -z $TRAVIS_COMMIT ]; then
+        EMAIL=$(git config user.email)
+    else
+        EMAIL=$(git show --format="%aE" -s $TRAVIS_COMMIT)
+    fi
+    if echo $EMAIL | grep -q "[@.]intel.com"; then
+        INTEL=y
+    else
+        INTEL=
+    fi
+
+    if ! ./scripts/checkheaders -v; then
+        RVAL=1
+        return $RVAL
+    fi
+
+    for f in $MATCHES; do
+        # check for Copyright comment
+        if ! $(head -1 $f | grep -q Copyright); then
+            echo Error: Add copyright to first line of $f!
+            RVAL=1
+        # if found, make sure current date is there
+        elif ! $(head -1 $f | grep -q $YEAR); then
+            if [ "$INTEL" ]; then
+                if head -1 $f | grep -q Intel; then
+                    echo "Incorrect copyright found in $f, fixing"
+                    d=$(date +"%Y")
+                    sed -i "0,/\([1-2][0|9][12|9][0-9]\)/s//&-$d/" $f
+                    git add $f
+                    RVAL=0
+                fi
+            fi
+        fi
+        # remove any possible whitespace at end of line
+        sed 's/ *$//w changed.txt' $f
+        if [ -s changed.txt ]; then
+            echo "Removed whitespace from $f"
+            mv changed.txt $f
+            git add $f
+        fi
+    done
+
+    return $RVAL
+}
+
+# check that updated files have updated copyrights
+if ! try_command "copyright" check_copyright; then
+    exit 1
+else
+    exit 0
+fi
