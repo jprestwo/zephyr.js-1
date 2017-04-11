@@ -5,11 +5,16 @@
 
 // This file includes code common to both X86 and ARC
 
+/**
+ * Namespace for public C API's
+ * @namespace C_API
+ */
+
 #include <stdio.h>
 
 #define ZJS_PRINT printf
 
-/**
+/*
  * Return a pointer to the filename portion of a string plus one parent dir
  *
  * @param filepath  A valid null-terminated string

@@ -1,4 +1,4 @@
-// Copyright (c) 2016, Intel Corporation.
+// Copyright (c) 2016-2017, Intel Corporation.
 
 #include "jerryscript.h"
 
@@ -72,14 +72,14 @@ void *zjs_ocf_props_setup(jerry_value_t props_object,
  */
 void zjs_ocf_free_props(void *h);
 
-/**
+/*
  * Routine to call into iotivity-constrained
  *
  * @return              iotivity-constrained's polling functions return value
  */
 uint8_t main_poll_routine(void *handle);
 
-/**
+/*
  * Set the 'uuid' property in the device object. This API is required because
  * we dont get the UUID until after the device object is created/initialized.
  *

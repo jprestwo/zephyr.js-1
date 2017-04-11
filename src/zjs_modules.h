@@ -1,4 +1,4 @@
-// Copyright (c) 2016, Intel Corporation.
+// Copyright (c) 2016-2017, Intel Corporation.
 
 #ifndef __zjs_modules_h__
 #define __zjs_modules_h__
@@ -11,7 +11,7 @@
 
 #define NUM_SERVICE_ROUTINES 3
 
-/**
+/*
  * Service routine function type
  *
  * @param handle        Handle that was registered

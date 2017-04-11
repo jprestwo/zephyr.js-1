@@ -1,4 +1,4 @@
-// Copyright (c) 2016, Intel Corporation.
+// Copyright (c) 2016-2017, Intel Corporation.
 
 #ifndef ZJS_LINUX_PORT_H_
 #define ZJS_LINUX_PORT_H_
@@ -35,11 +35,11 @@ uint32_t zjs_port_timer_get_uptime(void);
 #define ENOSPC      28
 
 struct zjs_port_ring_buf {
-    uint32_t head;   /**< Index in buf for the head element */
-    uint32_t tail;   /**< Index in buf for the tail element */
-    uint32_t size;   /**< Size of buf in 32-bit chunks */
-    uint32_t *buf;   /**< Memory region for stored entries */
-    uint32_t mask;   /**< Modulo mask if size is a power of 2 */
+    uint32_t head;   /*< Index in buf for the head element */
+    uint32_t tail;   /*< Index in buf for the tail element */
+    uint32_t size;   /*< Size of buf in 32-bit chunks */
+    uint32_t *buf;   /*< Memory region for stored entries */
+    uint32_t mask;   /*< Modulo mask if size is a power of 2 */
 };
 
 void zjs_port_ring_buf_init(struct zjs_port_ring_buf *buf,

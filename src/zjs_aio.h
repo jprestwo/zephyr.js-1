@@ -1,14 +1,14 @@
-// Copyright (c) 2016, Intel Corporation.
+// Copyright (c) 2016-2017, Intel Corporation.
 
 #ifndef __zjs_aio_h__
 #define __zjs_aio_h__
 
 #include "jerryscript.h"
 
-/** Initialize the aio module, or reinitialize after cleanup */
+/* Initialize the aio module, or reinitialize after cleanup */
 jerry_value_t zjs_aio_init();
 
-/** Release resources held by the aio module */
+/* Release resources held by the aio module */
 void zjs_aio_cleanup();
 
 #endif  // __zjs_aio_h__

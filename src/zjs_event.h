@@ -8,6 +8,9 @@
 /**
  * Callback prototype for after an event is triggered
  *
+ * @memberof C_API
+ * @function zjs_post_event
+ *
  * @param handle        Handle given to zjs_trigger_event()
  */
 typedef void (*zjs_post_event)(void *handle);
@@ -19,6 +22,9 @@ typedef void (*zjs_post_event)(void *handle);
  * undefined and the event emitter prototype will be used. If a prototype is
  * given, it will be used as the object's prototype but its prototype in turn
  * will be set to the event emitter prototype.
+ *
+ * @memberof C_API
+ * @function zjs_make_event
  *
  * @param obj           Object to turn into an event object
  * @param prototype     Object to decorate and use as prototype, or undefined
@@ -44,6 +50,9 @@ void zjs_add_event_listener(jerry_value_t obj, const char *event,
  *        here and releasing our copies later? Then the caller would just
  *        release theirs immediately after the zjs_trigger_event call.
  *
+ * @memberof C_API
+ * @function zjs_trigger_event
+ *
  * @param obj           Object that contains the event to be triggered
  * @param event         Name of event
  * @param args          Arguments to give to the event listener as parameters
@@ -60,6 +69,9 @@ bool zjs_trigger_event(jerry_value_t obj, const char *event,
 /**
  * Call any registered event listeners immediately
  *
+ * @memberof C_API
+ * @function zjs_trigger_event_now
+ *
  * @param obj           Object that contains the event to be triggered
  * @param event         Name of event
  * @param args          Arguments to give to the event listener as parameters
@@ -73,14 +85,14 @@ bool zjs_trigger_event_now(jerry_value_t obj, const char *event,
                            const jerry_value_t argv[], uint32_t argc,
                            zjs_post_event post, void *h);
 
-/**
+/*
  * Initialize the event module
  *
  * @return              Event constructor
  */
 jerry_value_t zjs_event_init();
 
-/** Release resources held by the event module */
+/* Release resources held by the event module */
 void zjs_event_cleanup();
 
 #endif

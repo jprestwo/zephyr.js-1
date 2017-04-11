@@ -393,6 +393,10 @@ arcgdb:
 linux: generate
 	make -f Makefile.linux JS=$(JS) VARIANT=$(VARIANT) CB_STATS=$(CB_STATS) V=$(V) SNAPSHOT=$(SNAPSHOT)
 
+.PHONY: html
+html:
+	documentation build --polyglot src/** -f html -o html/
+
 .PHONY: help
 help:
 	@echo "JavaScript Runtime for Zephyr OS - Build System"
@@ -410,6 +414,7 @@ help:
 	@echo "    pristine:   Completely remove all generated files"
 	@echo "    check:      Run all the automated build tests"
 	@echo "    quickcheck: Run the quick Linux subset of automated build tests"
+	@echo "    html:       Generate documentation in HTML format"
 	@echo
 	@echo "Build options:"
 	@echo "    BOARD=      Specify a Zephyr board to build for"

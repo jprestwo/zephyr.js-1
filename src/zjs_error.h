@@ -17,17 +17,43 @@ typedef enum zjs_error_type {
     Error
 } zjs_error_type_t;
 
-/** Initialize the error module, or reinitialize after cleanup. */
+/* Initialize the error module, or reinitialize after cleanup. */
 void zjs_error_init();
 
-/** Release resources held by the error module. */
+/* Release resources held by the error module. */
 void zjs_error_cleanup();
 
+/**
+ * Create an error object who's message contains the function name that is
+ * throwing the error.
+ *
+ * @memberof C_API
+ * @function zjs_error_with_func
+ *
+ * @param this      This object for the function who threw the error
+ * @param func      Function object for the function who threw the error
+ * @param type      Type of error to create
+ * @param message   Message for the error
+ *
+ */
 jerry_value_t zjs_error_with_func(jerry_value_t this,
                                   jerry_value_t func,
                                   zjs_error_type_t type,
                                   const char *message);
 
+/**
+ * Create a custom error object who's message contains the function name that is
+ * throwing the error.
+ *
+ * @memberof C_API
+ * @function zjs_error_with_func
+ *
+ * @param this      This object for the function who threw the error
+ * @param func      Function object for the function who threw the error
+ * @param name      Custom error type
+ * @param message   Message for the error
+ *
+ */
 jerry_value_t zjs_custom_error_with_func(jerry_value_t this,
                                          jerry_value_t func,
                                          const char *name,
@@ -35,6 +61,9 @@ jerry_value_t zjs_custom_error_with_func(jerry_value_t this,
 
 /**
  * Create an error object to return from an API.
+ *
+ * @memberof C_API
+ * @function zjs_custom_error
  *
  * @param name A custom name for the error.
  * @param message String for additional detail about the error.
@@ -45,6 +74,9 @@ jerry_value_t zjs_custom_error(const char *name, const char *message);
 
 /**
  * Create an error object to return from an API.
+ *
+ * @memberof C_API
+ * @function zjs_standard_error
  *
  * @param type An error type from zjs_error_type enum.
  * @param message String for additional detail about the error.

@@ -1,4 +1,4 @@
-// Copyright (c) 2015-2016, Intel Corporation.
+// Copyright (c) 2015-2017-2016, Intel Corporation.
 
 /*
  * This ring buffer implementation was taken from the Zephyr source and
@@ -15,9 +15,9 @@
 #endif
 
 struct ring_element {
-    uint32_t  type   :16; /**< Application-specific */
-    uint32_t  length :8;  /**< length in 32-bit chunks */
-    uint32_t  value  :8;  /**< Room for small integral values */
+    uint32_t  type   :16; /*< Application-specific */
+    uint32_t  length :8;  /*< length in 32-bit chunks */
+    uint32_t  value  :8;  /*< Room for small integral values */
 };
 
 static int get_space(struct zjs_port_ring_buf *buf)

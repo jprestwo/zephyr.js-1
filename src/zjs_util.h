@@ -13,7 +13,7 @@
 
 #define ZJS_UNDEFINED jerry_create_undefined()
 
-/**
+/*
  * Call malloc but if it fails, run JerryScript garbage collection and retry
  *
  * @param size  Number of bytes to allocate
@@ -46,7 +46,7 @@ typedef struct zjs_native_func {
     const char *name;
 } zjs_native_func_t;
 
-/**
+/*
  * Add a series of functions described in array funcs to obj.
  *
  * @param obj    JerryScript object to add the functions to
@@ -74,7 +74,7 @@ bool zjs_obj_get_double(jerry_value_t obj, const char *name, double *num);
 bool zjs_obj_get_uint32(jerry_value_t obj, const char *name, uint32_t *num);
 bool zjs_obj_get_int32(jerry_value_t obj, const char *name, int32_t *num);
 
-/**
+/*
  * Copy a JerryScript string into a supplied char * buffer.
  *
  * @param jstr    A JerryScript string value.
@@ -89,7 +89,7 @@ bool zjs_obj_get_int32(jerry_value_t obj, const char *name, int32_t *num);
  */
 void zjs_copy_jstring(jerry_value_t jstr, char *buffer, jerry_size_t *maxlen);
 
-/**
+/*
  * Allocate a char * buffer on the heap and copy the JerryScript string to it.
  *
  * @param jstr    A JerryScript string value.
@@ -114,12 +114,12 @@ uint32_t zjs_uncompress_16_to_32(uint16_t num);
 
 void zjs_print_error_message(jerry_value_t error);
 
-/**
+/*
  * Release a jerry_value_t passed by reference
  */
 void zjs_free_value(const jerry_value_t *value);
 
-/**
+/*
  * Macro to declare a jerry_value_t and have it released automatically
  *
  * If you're going to be returning the value from a function, you usually don't
@@ -132,7 +132,7 @@ void zjs_free_value(const jerry_value_t *value);
  */
 #define ZVAL const jerry_value_t __attribute__ ((__cleanup__(zjs_free_value)))
 
-/**
+/*
  * A non-const version of ZVAL
  *
  * This is for when you need to initialize a ZVAL from more than one path. It
@@ -173,7 +173,7 @@ enum {
 int zjs_validate_args(const char *expectations[], const jerry_length_t argc,
                       const jerry_value_t argv[]);
 
-/**
+/*
  * Macro to validate existing argv based on a list of expected argument types.
  *
  * NOTE: Expects argc and argv to exist as in a JerryScript native function.
@@ -210,7 +210,7 @@ int zjs_validate_args(const char *expectations[], const jerry_length_t argc,
 #define ZJS_VALIDATE_ARGS(...)                      \
     ZJS_VALIDATE_ARGS_FULL(zjs_validate_rval, 0, __VA_ARGS__)
 
-/**
+/*
  * Macro to check if the argument list was expected, but not return an error.
  * This is useful if you want to reject a promise based on bad arguments instead
  * of automatically returning an error.

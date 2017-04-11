@@ -5,10 +5,10 @@
 
 #include "jerryscript.h"
 
-/** Initialize the dgram module, or reinitialize after cleanup */
+/* Initialize the dgram module, or reinitialize after cleanup */
 jerry_value_t zjs_dgram_init();
 
-/** Release resources held by the dgram module */
+/* Release resources held by the dgram module */
 void zjs_dgram_cleanup();
 
 #endif  // __zjs_dgram_h__

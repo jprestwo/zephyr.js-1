@@ -14,6 +14,52 @@
 #include "zjs_callbacks.h"
 #include "zjs_promise.h"
 
+/**
+ * GPIO Object. Returned from require('gpio');
+ *
+ * @namespace GPIO
+ * @example
+ * var gpio = require('gpio');
+ */
+/**
+ * GPIO pin object.
+ *
+ * @typedef {Object} GpioPin
+ *
+ * @property {onchange} onchange    Callback for GPIO pin interrupts
+ * @property {function} read        Read a GPIO pin
+ * @property {function} write       Write a value to a GPIO
+ */
+/**
+ * GPIO config object
+ *
+ * @typedef {Object} GpioConfig
+ * @property {number} pin           Pin number
+ * @property {string} direction     Input vs Output
+ * @property {string} edge          Interrupt detection edge
+ * @property {boolean} activeLow    Is pin active low
+ * @property {string} pull          Pull up/down/none
+ */
+/**
+ * GPIO event type
+ *
+ * @typedef {Object} GpioEvent
+ * @property {boolean} value        Current value of GPIO pin
+ */
+/**
+ * onchange callback, called when a GPIO event happens
+ *
+ * @callback onchange
+ * @param {GpioEvent} event
+ *
+ * @example
+ * var gpio = require('gpio');
+ * var pin = gpio.open({pin: 10, direction:'out'});
+ * pin.onchange = function(event) {
+ *     console.log("pin=" + event.value);
+ * }
+ */
+
 static const char *ZJS_DIR_IN = "in";
 static const char *ZJS_DIR_OUT = "out";
 
@@ -149,6 +195,19 @@ static void zjs_gpio_zephyr_callback(struct device *port,
     }
 }
 
+/**
+ * Read the current state of a GPIO pin
+ *
+ * @memberof GpioPin
+ * @function read
+ *
+ * @return {boolean}       True or false value to write to GPIO
+ *
+ * @example
+ * var gpio = require('gpio');
+ * var pin = gpio.open({pin: 10, direction:'out'});
+ * var value = pin.read();
+ */
 static jerry_value_t zjs_gpio_pin_read(const jerry_value_t function_obj,
                                        const jerry_value_t this,
                                        const jerry_value_t argv[],
@@ -187,6 +246,19 @@ static jerry_value_t zjs_gpio_pin_read(const jerry_value_t function_obj,
     return jerry_create_boolean(logical);
 }
 
+/**
+ * Write a value to a GPIO pin
+ *
+ * @memberof GpioPin
+ * @function write
+ *
+ * @param {boolean} value       True or false value to write to GPIO
+ *
+ * @example
+ * var gpio = require('gpio');
+ * var pin = gpio.open({pin: 10, direction:'out'});
+ * pin.write(true);
+ */
 static jerry_value_t zjs_gpio_pin_write(const jerry_value_t function_obj,
                                         const jerry_value_t this,
                                         const jerry_value_t argv[],
@@ -237,6 +309,12 @@ static void zjs_gpio_close(gpio_handle_t *handle)
         handle->closed = true;
 }
 
+/**
+ * Close a GPIO pin
+ *
+ * @function close
+ * @memberof GPIO
+ */
 static jerry_value_t zjs_gpio_pin_close(const jerry_value_t function_obj,
                                         const jerry_value_t this,
                                         const jerry_value_t argv[],
@@ -424,6 +502,20 @@ static jerry_value_t zjs_gpio_open(const jerry_value_t function_obj,
     return jerry_acquire_value(pinobj);
 }
 
+/**
+ * Open a gpio pin in synchronous
+ *
+ * @memberof GPIO
+ * @function open
+ *
+ * @param {GpioConfig} config
+ *
+ * @returns {GpioPin}
+ *
+ * @example
+ * var require('gpio');
+ * var mypin = gpio.open({pin: 10, direction: 'out'});
+ */
 static jerry_value_t zjs_gpio_open_sync(const jerry_value_t function_obj,
                                         const jerry_value_t this,
                                         const jerry_value_t argv[],
@@ -432,6 +524,22 @@ static jerry_value_t zjs_gpio_open_sync(const jerry_value_t function_obj,
     return zjs_gpio_open(function_obj, this, argv, argc, false);
 }
 
+/**
+ * Open a gpio pin in async mode
+ *
+ * @memberof GPIO
+ * @function openAsync
+ *
+ * @param {GpioConfig} config
+ *
+ * @returns {Promise.<GpioPin>}
+ *
+ * @example
+ * var require('gpio');
+ * gpio.openAsync({pin: 10, direction: 'out'}).then(function(pin) {
+ *     // use 'pin'
+ * });
+ */
 static jerry_value_t zjs_gpio_open_async(const jerry_value_t function_obj,
                                          const jerry_value_t this,
                                          const jerry_value_t argv[],

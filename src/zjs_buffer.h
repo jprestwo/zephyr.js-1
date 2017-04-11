@@ -5,10 +5,10 @@
 
 #include "jerryscript.h"
 
-/** Initialize the buffer module, or reinitialize after cleanup */
+/* Initialize the buffer module, or reinitialize after cleanup */
 void zjs_buffer_init();
 
-/** Release resources held by the buffer module */
+/* Release resources held by the buffer module */
 void zjs_buffer_cleanup();
 
 // FIXME: We should make this private and have accessor methods
@@ -22,7 +22,7 @@ typedef struct zjs_buffer {
 zjs_buffer_t *zjs_buffer_find(const jerry_value_t obj);
 
 
-/**
+/*
  * Create a new Buffer object
  *
  * @param size     Buffer size in bytes
