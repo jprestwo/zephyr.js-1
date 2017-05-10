@@ -2,9 +2,6 @@ ccflags-y += ${PROJECTINCLUDE} \
 	-I$(ZEPHYR_BASE)/drivers \
 	-I$(src)/../../src \
 
-obj-y = main.o \
-      ../../src/zjs_common.o \
-      ../../src/zjs_ipm.o \
-      ../../src/zjs_i2c_handler.o
+obj-y = main.o
 
 ccflags-y += -Wall -Werror
