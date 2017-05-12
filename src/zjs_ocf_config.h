@@ -12,5 +12,6 @@ typedef uint64_t oc_clock_time_t;
 #define OC_CLOCK_CONF_TICKS_PER_SECOND (1000)
 
 #define OC_DYNAMIC_ALLOCATION
+#define OC_MAX_APP_RESOURCES    3
 
 #endif
