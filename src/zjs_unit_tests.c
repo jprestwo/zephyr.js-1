@@ -74,6 +74,22 @@ static void c_callback5(void *handle, const void *args)
 
 }
 
+static uint8_t callback6_finished = 0;
+static void c_callback6(void *handle, const void *args)
+{
+    if (args) {
+        zjs_callback_id id = *((zjs_callback_id *)args);
+        zjs_signal_callback(id, NULL, 0);
+        callback6_finished = 1;
+    }
+}
+
+static uint8_t callback7_finished = 0;
+static void c_callback7(void *handle, const void *args)
+{
+    callback7_finished = 1;
+}
+
 static void test_c_callbacks()
 {
     zjs_init_callbacks();
@@ -132,6 +148,14 @@ static void test_c_callbacks()
     zjs_edit_callback_handle(id5, (void *)&h2);
     zjs_service_callbacks();
     zjs_assert(handle_correct, "zjs_edit_callback_handle()");
+
+    zjs_callback_id id6 = zjs_add_c_callback(NULL, c_callback6);
+    zjs_callback_id id7 = zjs_add_c_callback(NULL, c_callback7);
+    zjs_signal_callback(id6, &id7, sizeof(zjs_callback_id));
+    zjs_service_callbacks();
+
+    zjs_assert(callback6_finished && callback7_finished,
+            "signaling from callback");
 }
 
 static void test_hex_to_byte()

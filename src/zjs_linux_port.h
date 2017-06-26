@@ -6,6 +6,7 @@
 #include "zjs_util.h"
 #include <unistd.h>
 #include <time.h>
+#include <pthread.h>
 
 // define Zephyr numeric types we use
 typedef uint32_t u32_t;
@@ -34,10 +35,6 @@ u32_t zjs_port_timer_get_uptime(void);
 
 #define SIZE32_OF(x) (sizeof((x))/sizeof(u32_t))
 
-#define EAGAIN      11
-#define EMSGSIZE    12
-#define ENOSPC      28
-
 struct zjs_port_ring_buf {
     u32_t head;   /**< Index in buf for the head element */
     u32_t tail;   /**< Index in buf for the tail element */
@@ -62,5 +59,20 @@ int zjs_port_ring_buf_put(struct zjs_port_ring_buf *buf,
                           u8_t value,
                           u32_t *data,
                           u8_t size32);
+
+#define atomic_t volatile int
+typedef atomic_t atomic_val_t;
+
+// word size operations are atomic on linux
+#define atomic_get(a) *a
+#define atomic_set(a, v) *a = v
+
+#define zjs_port_sem pthread_mutex_t
+#define zjs_port_sem_init(sem) pthread_mutex_init(sem, NULL)
+#define zjs_port_sem_give(sem) pthread_mutex_unlock(sem);
+int zjs_port_sem_take(zjs_port_sem *sem, int32_t wait);
+
+#define EMSGSIZE    90
+#define EAGAIN      11
 
 #endif /* ZJS_LINUX_PORT_H_ */
