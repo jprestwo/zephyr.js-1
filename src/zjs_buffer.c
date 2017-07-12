@@ -12,6 +12,9 @@
 #include "zjs_buffer.h"
 #include "zjs_common.h"
 #include "zjs_util.h"
+#ifdef CONFIG_NETWORKING
+#include <net/net_pkt.h>
+#endif
 
 static jerry_value_t zjs_buffer_prototype;
 
@@ -21,7 +24,14 @@ static void zjs_buffer_callback_free(void *handle)
     //             jerry_set_object_native_handle
     //  effects: frees the buffer item
     zjs_buffer_t *item = (zjs_buffer_t *)handle;
-    zjs_free(item->buffer);
+    if (item->buffer) {
+        zjs_free(item->buffer);
+    } else {
+#ifdef CONFIG_NETWORKING
+        ZJS_PRINT("unreffing %p\n", item->net_buf);
+        net_buf_unref(item->net_buf);
+#endif
+    }
     zjs_free(item);
 }
 
@@ -85,10 +95,22 @@ static ZJS_DECL_FUNC_ARGS(zjs_buffer_read_bytes, int bytes, bool big_endian)
         offset += bytes - 1;  // start on the big end
 
     u32_t value = 0;
-    for (int i = 0; i < bytes; i++) {
-        value <<= 8;
-        value |= buf->buffer[offset];
-        offset += dir;
+
+    if (buf->buffer) {
+        for (int i = 0; i < bytes; i++) {
+            value <<= 8;
+            value |= buf->buffer[offset];
+            offset += dir;
+        }
+    } else {
+#ifdef CONFIG_NETWORKING
+        // little hack to take advantage of this net_pkt function
+        struct net_pkt src;
+        src.frags = buf->net_buf;
+        net_frag_linearize((void *)&value, bytes, &src, offset, bytes);
+#else
+        return zjs_error("buffer pointer was NULL");
+#endif
     }
 
     return jerry_create_number(value);
@@ -122,6 +144,11 @@ static ZJS_DECL_FUNC_ARGS(zjs_buffer_write_bytes, int bytes, bool big_endian)
     if (!buf)
         return zjs_error("buffer not found on write");
 
+#ifdef CONFIG_NETWORKING
+    if (buf->net_buf) {
+        return zjs_error("cannot write to net_pkt buffer");
+    }
+#endif
     if (offset + bytes > buf->bufsize)
         return zjs_error("write attempted beyond buffer");
 
@@ -223,13 +250,29 @@ static ZJS_DECL_FUNC(zjs_buffer_to_string)
 
     if (strcmp(encoding, "ascii") == 0) {
         // prevent buffer from accessing hidden properties
-        for (int i = 0; i < buf->bufsize; ++i) {
-            if (buf->buffer[i] == 0xff) {
-                return zjs_error("buffer has invalid ascii");
+        if (buf->buffer) {
+            for (int i = 0; i < buf->bufsize; ++i) {
+                if (buf->buffer[i] == 0xff) {
+                    return zjs_error("buffer has invalid ascii");
+                }
             }
+            buf->buffer[buf->bufsize] = '\0';
+            return jerry_create_string((jerry_char_t *)buf->buffer);
+        } else {
+#ifdef CONFIG_NETWORKING
+            struct net_pkt src;
+            src.frags = buf->net_buf;
+            char *tmp = zjs_malloc(buf->bufsize + 1);
+            net_frag_linearize(tmp, buf->bufsize, &src, 0, buf->bufsize);
+            tmp[buf->bufsize] = '\0';
+
+            jerry_value_t s = jerry_create_string((jerry_char_t *)tmp);
+            zjs_free(tmp);
+            return s;
+#else
+            return zjs_error("buffer pointer was NULL");
+#endif
         }
-        buf->buffer[buf->bufsize] = '\0';
-        return jerry_create_string((jerry_char_t *)buf->buffer);
     } else if (strcmp(encoding, "hex") == 0) {
         if (buf && buf->bufsize > 0) {
             char hexbuf[buf->bufsize * 2 + 1];
@@ -290,6 +333,11 @@ static ZJS_DECL_FUNC(zjs_buffer_write_string)
         zjs_free(str);
         return zjs_error("buffer not found");
     }
+#ifdef CONFIG_NETWORKING
+    if (buf->net_buf) {
+        return zjs_error("cannot write to net_pkt buffer");
+    }
+#endif
 
     u32_t offset = 0;
     if (argc > 1)
@@ -314,6 +362,45 @@ static ZJS_DECL_FUNC(zjs_buffer_write_string)
 
     return jerry_create_number(length);
 }
+
+#ifdef CONFIG_NETWORKING
+jerry_value_t zjs_buffer_create_nbuf(struct net_pkt *pkt, zjs_buffer_t **ret_buf)
+{
+    zjs_buffer_t *buf_item = (zjs_buffer_t *)zjs_malloc(sizeof(zjs_buffer_t));
+    if (!buf_item) {
+        if (ret_buf) {
+            *ret_buf = NULL;
+        }
+        return zjs_error_context("out of memory", 0, 0);
+    }
+
+    memset(buf_item, 0, sizeof(zjs_buffer_t));
+
+    buf_item->net_buf = pkt->frags;
+    buf_item->bufsize = net_pkt_appdatalen(pkt);
+
+    ZJS_PRINT("Turning net buf %p into buffer\n", buf_item->net_buf);
+    struct net_buf *tmp = pkt->frags;
+    while (tmp) {
+        net_buf_ref(tmp);
+        net_buf_ref(tmp);
+        tmp = tmp->frags;
+    }
+
+    jerry_value_t buf_obj = jerry_create_object();
+
+    jerry_set_prototype(buf_obj, zjs_buffer_prototype);
+    zjs_obj_add_readonly_number(buf_obj, buf_item->bufsize, "length");
+
+    // watch for the object getting garbage collected, and clean up
+    jerry_set_object_native_pointer(buf_obj, buf_item, &buffer_type_info);
+    if (ret_buf) {
+        *ret_buf = buf_item;
+    }
+
+    return buf_obj;
+}
+#endif
 
 jerry_value_t zjs_buffer_create(u32_t size, zjs_buffer_t **ret_buf)
 {

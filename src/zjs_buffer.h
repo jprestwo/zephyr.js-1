@@ -5,6 +5,10 @@
 
 #include "jerryscript.h"
 
+#ifdef CONFIG_NETWORKING
+#include <net/net_pkt.h>
+#endif
+
 // ZJS includes
 #include "zjs_common.h"
 
@@ -16,6 +20,9 @@ void zjs_buffer_cleanup();
 
 // FIXME: We should make this private and have accessor methods
 typedef struct zjs_buffer {
+#ifdef CONFIG_NETWORKING
+    struct net_buf *net_buf;
+#endif
     u8_t *buffer;
     u32_t bufsize;
 } zjs_buffer_t;
@@ -48,5 +55,9 @@ zjs_buffer_t *zjs_buffer_find(const jerry_value_t obj);
  *            NULL, if given
  */
 jerry_value_t zjs_buffer_create(u32_t size, zjs_buffer_t **ret_buf);
+
+#ifdef CONFIG_NETWORKING
+jerry_value_t zjs_buffer_create_nbuf(struct net_pkt *net_buf, zjs_buffer_t **ret_buf);
+#endif
 
 #endif  // __zjs_buffer_h__

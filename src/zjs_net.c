@@ -199,16 +199,15 @@ static void start_socket_timeout(sock_handle_t *handle, u32_t time)
 static void tcp_c_callback(void *h, const void *args)
 {
     sock_handle_t *handle = (sock_handle_t *)h;
+    struct net_pkt *pkt = *((struct net_pkt **)args);
     if (handle) {
-        // find length of unconsumed data in read buffer
-        u32_t len = handle->wptr - handle->rptr;
-        zjs_buffer_t *zbuf;
-        ZVAL data_buf = zjs_buffer_create(len, &zbuf);
-        // copy data from read buffer
-        memcpy(zbuf->buffer, handle->rptr, len);
-        handle->rptr = handle->wptr = handle->rbuf;
+        // get rid of the header
+        u32_t header_len = net_pkt_appdata(pkt) - pkt->frags->data;
+        net_buf_pull(pkt->frags, header_len);
 
+        ZVAL data_buf = zjs_buffer_create_nbuf(pkt, NULL);
         zjs_trigger_event(handle->socket, "data", &data_buf, 1, NULL, NULL);
+        net_pkt_unref(pkt);
 
         zjs_remove_callback(handle->tcp_read_id);
     } else {
@@ -287,28 +286,14 @@ static void tcp_received(struct net_context *context,
     if (handle && buf) {
         start_socket_timeout(handle, handle->timeout);
 
-        u32_t len = net_pkt_appdatalen(buf);
-        u8_t *data = net_pkt_appdata(buf);
+        // if not paused, call the callback to get JS the data
+        if (!handle->paused) {
+            DBG_PRINT("data received on context %p: data=%p\n", context, pkt);
 
-        if (len && data) {
-            DBG_PRINT("received data, context=%p, data=%p, len=%u\n", context,
-                      data, len);
-
-            memcpy(handle->wptr, data, len);
-            handle->wptr += len;
-
-            // if not paused, call the callback to get JS the data
-            if (!handle->paused) {
-                handle->tcp_read_id = zjs_add_c_callback(handle,
-                                                         tcp_c_callback);
-                zjs_signal_callback(handle->tcp_read_id, NULL, 0);
-
-                DBG_PRINT("data received on context %p: data=%p, len=%u\n",
-                          context, data, len);
-            }
+            handle->tcp_read_id = zjs_add_c_callback(handle,
+                                                     tcp_c_callback);
+            zjs_signal_callback(handle->tcp_read_id, &buf, 4);
         }
-
-        net_pkt_unref(buf);
     }
 }
 
@@ -344,19 +329,31 @@ static ZJS_DECL_FUNC(socket_write)
     start_socket_timeout(handle, handle->timeout);
 
     zjs_buffer_t *buf = zjs_buffer_find(argv[0]);
-    struct net_pkt *send_buf;
-    send_buf = net_pkt_get_tx(handle->tcp_sock, K_NO_WAIT);
+    struct net_pkt *send_buf = net_pkt_get_tx(handle->tcp_sock, K_NO_WAIT);
+
     if (!send_buf) {
         ERR_PRINT("cannot acquire send_buf\n");
         return jerry_create_boolean(false);
     }
 
-    bool status = net_pkt_append(send_buf, buf->bufsize, buf->buffer,
-                                 K_NO_WAIT);
-    if (!status) {
-        net_pkt_unref(send_buf);
-        ERR_PRINT("cannot populate send_buf\n");
-        return jerry_create_boolean(false);
+    if (buf->buffer) {
+        bool status = net_pkt_append(send_buf, buf->bufsize, buf->buffer,
+                K_NO_WAIT);
+        if (!status) {
+            net_pkt_unref(send_buf);
+            ERR_PRINT("cannot populate send_buf\n");
+            return jerry_create_boolean(false);
+        }
+    } else {
+        /*
+         * We can't use the existing net_pkt because we don't have the header
+         * so copy all the fragments to the new net_pkt.
+         */
+        struct net_buf *frag = buf->net_buf;
+        while (frag) {
+            net_pkt_frag_add(send_buf, frag);
+            frag = frag->frags;
+        }
     }
 
     zjs_callback_id id = -1;
@@ -368,7 +365,9 @@ static ZJS_DECL_FUNC(socket_write)
                                INT_TO_POINTER((s32_t)id));
     if (ret < 0) {
         ERR_PRINT("Cannot send data to peer (%d)\n", ret);
+
         net_pkt_unref(send_buf);
+
         zjs_remove_callback(id);
         // TODO: may need to check the specific error to determine action
         DBG_PRINT("write failed, context=%p, socket=%u\n", handle->tcp_sock,

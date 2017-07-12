@@ -252,6 +252,7 @@ int main(int argc, char *argv[])
         }
         last_serviced = serviced;
 #endif
+        jerry_gc();
     }
 error:
 #ifdef ZJS_LINUX_BUILD
