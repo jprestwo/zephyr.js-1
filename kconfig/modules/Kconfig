@@ -1,0 +1,28 @@
+config USE_GPIO
+	bool "Enable GPIO"
+	default n
+
+config USE_SPI
+	bool "Enable SPI"
+	default n
+
+config USE_AIO
+	bool "Enable AIO"
+	default n
+
+config USE_I2C
+	bool "Enable I2C"
+	default n
+
+menu "Sensors"
+	config USE_ACCELL
+		bool "Enable Accelerometer"
+		default n
+	config USE_GYRO
+		bool "Enable Gyroscope"
+		default n
+endmenu
+
+config USE_FILE_SYSTEM
+	bool "Enable File System"
+	default n

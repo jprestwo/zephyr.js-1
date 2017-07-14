@@ -1,0 +1,12 @@
+config USE_NETWORKING
+	bool "Enable networking"
+	default n
+	default y if USE_ETHERNET_BUILTIN || USE_ETHERNET_ENJ
+
+config USE_IPV4
+	bool "Enable IPv4"
+	default n
+
+config USE_IPV6
+	bool "Enable IPv6"
+	default n

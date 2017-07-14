@@ -1,0 +1,11 @@
+config USE_BLUETOOTH
+	bool "Include bluetooth driver"
+	default n
+
+config USE_ETHERNET_BUILTIN
+	bool "Includes builtin ethernet driver"
+	default n
+
+config USE_ETHERNET_ENJ
+	bool "Includes enj ethernet driver
+	default n

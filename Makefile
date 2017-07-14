@@ -460,6 +460,10 @@ arcgdb:
 linux: generate
 	make -f Makefile.linux JS=$(JS) VARIANT=$(VARIANT) CB_STATS=$(CB_STATS) V=$(V) SNAPSHOT=$(SNAPSHOT)
 
+.PHONY: menuconfig
+menuconfig:
+	$(ZEPHYR_BASE)/scripts/kconfig/mconf kconfig/Kconfig.zjs
+
 .PHONY: help
 help:
 	@echo "JavaScript Runtime for Zephyr OS - Build System"

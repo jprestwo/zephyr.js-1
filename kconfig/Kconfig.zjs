@@ -1,0 +1,23 @@
+mainmenu "ZJS Configuration"
+
+menu "ZJS Modules"
+
+source "kconfig/modules/Kconfig"
+
+endmenu
+
+menu "Drivers"
+
+source "kconfig/drivers/Kconfig"
+
+endmenu
+
+menu "Networking"
+
+source "kconfig/networking/Kconfig"
+
+endmenu
+
+config GO_TO_LUNCH
+	bool "Do you want to get lunch?"
+	default y
