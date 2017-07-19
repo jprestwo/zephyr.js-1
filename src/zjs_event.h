@@ -6,6 +6,25 @@
 // ZJS includes
 #include "zjs_util.h"
 
+#define MAX_EVENT_ARGS 4
+
+/**
+ * Callback prototype for before an event is emitted
+ *
+ * The callback is responsible for setting up the arguments
+ *
+ * @param handle        Handle given to zjs_trigger_event()
+ */
+typedef void (*zjs_pre_emit)(jerry_value_t argv[], u32_t *argc,
+                             const char *buffer, u32_t length);
+
+/**
+ * Callback prototype for after an event is emitted
+ *
+ * @param handle        Handle given to zjs_trigger_event()
+ */
+typedef void (*zjs_post_emit)(jerry_value_t argv[]);
+
 /**
  * Callback prototype for after an event is triggered
  *
@@ -29,12 +48,51 @@ void zjs_make_event(jerry_value_t obj, jerry_value_t prototype);
 /**
  * Add a new event listener to an event object.
  *
- * @param obj           Object to add listener to
- * @param event         Name of new/existing event
- * @param listener      Function to be called when the event is triggered
+ * @param obj         Object to add listener to
+ * @param event_name  Name of new/existing event
+ * @param func        Function to be called when the event is triggered
+ *
+ * @return            Error or 0 value on success
  */
-void zjs_add_event_listener(jerry_value_t obj, const char *event,
-                            jerry_value_t listener);
+jerry_value_t zjs_add_event_listener(jerry_value_t obj, const char *event_name,
+                                     jerry_value_t func);
+
+/**
+ * Emit an event from a callback on the main thread
+ *
+ * FIXME: We need to describe how the ownership of args values works; it appears
+ *        maybe the caller needs to keep them live (acquired) and then release
+ *        them in post; or could we simplify this by acquiring them ourselves
+ *        here and releasing our copies later? Then the caller would just
+ *        release theirs immediately after the zjs_trigger_event call.
+ *
+ * @param obj           Object that contains the event to be triggered
+ * @param event         Name of event
+ * @param args          Arguments to give to the event listener as parameters
+ * @param args_cnt      Number of arguments
+ * @param post          Function to be called after the event is triggered
+ * @param handle        A handle that is accessible in the 'post' call
+ *
+ * @return              True if there were listeners
+ */
+void zjs_defer_emit_event(jerry_value_t obj, const char *event,
+                          const void *buffer, int bytes,
+                          zjs_pre_emit pre, zjs_post_emit post);
+
+/**
+ * Call any registered event listeners immediately
+ *
+ * @param obj           Object that contains the event to be triggered
+ * @param event         Name of event
+ * @param args          Arguments to give to the event listener as parameters
+ * @param args_cnt      Number of arguments
+ * @param post          Function to be called after the event is triggered
+ * @param handle        A handle that is accessable in the 'post' call
+ *
+ * @return              True if there were listeners
+ */
+bool zjs_emit_event(jerry_value_t obj, const char *event_name,
+                    const jerry_value_t argv[], u32_t argc);
 
 /**
  * Trigger an event

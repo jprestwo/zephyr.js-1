@@ -12,6 +12,7 @@ var echoValue = new Buffer(1);
 echoValue.writeUInt8(0);
 
 ble.on('stateChange', function(state) {
+    console.log('JS: stateChange', state);
     if (state === 'poweredOn') {
         ble.startAdvertising(deviceName, ['ab00']);
     }
@@ -31,6 +32,7 @@ ble.on('rssiUpdate', function(rssi) {
 });
 
 ble.on('advertisingStart', function(error) {
+    console.log('JS: advertisingStart');
     if (error) {
         console.log("Advertising start error: " + error);
         return;

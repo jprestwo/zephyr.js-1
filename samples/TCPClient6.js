@@ -17,9 +17,9 @@
 //       and start the TCP server on the host (e.g. Linux) side.
 
 var net = require('net');
-var net_cfg = require('net-config');
+var config = require('net-config');
 
-net_cfg.on('netup', function() {
+config.on('netup', function() {
 	console.log("network up");
 	setTimeout(function() {
 		console.log("starting client");

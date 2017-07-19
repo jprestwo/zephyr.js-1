@@ -338,6 +338,7 @@ static struct net_mgmt_event_callback cb;
 static void iface_event(struct net_mgmt_event_callback *cb,
         u32_t mgmt_event, struct net_if *iface)
 {
+    ZJS_PRINT("GOT IFACE EVENT\n");
     if (mgmt_event & NET_EVENT_IF_UP) {
         zjs_trigger_event(config, "netup", NULL, 0, NULL, NULL);
     } else if (mgmt_event & NET_EVENT_IF_DOWN) {
@@ -360,6 +361,7 @@ jerry_value_t zjs_net_config_init(void)
 
     struct net_if *iface = net_if_get_default();
     if (atomic_test_bit(iface->flags, NET_IF_UP)) {
+        ZJS_PRINT("networking was already up!\n");
         // networking is already up
         zjs_trigger_event(config, "netup", NULL, 0, NULL, NULL);
     }
