@@ -235,16 +235,18 @@ static void post_closed(void *handle)
     }
 }
 
-static void handle_wbuf_arg(jerry_value_t argv[], u32_t *argc,
+// a zjs_post_emit callback
+static void release_close(void *h, jerry_value_t argv[], u32_t argc)
+{
+    post_closed(h);
+    zjs_release_args(h, argv, argc);
+}
+
+static void handle_wbuf_arg(void *h, jerry_value_t argv[], u32_t *argc,
                             const char *buffer, u32_t bytes)
 {
     // requires: buffer contains a sock_handle_t pointer
-    
-    if (bytes != sizeof(sock_handle_t *)) {
-        ERR_PRINT("invalid data in handle_wbuf_arg");
-        return;
-    }
-    sock_handle_t *handle = *(sock_handle_t **)buffer;
+    sock_handle_t *handle = (sock_handle_t *)h;
 
     // find length of unconsumed data in read buffer
     u32_t len = handle->wptr - handle->rptr;
@@ -263,6 +265,63 @@ static void handle_wbuf_arg(jerry_value_t argv[], u32_t *argc,
     *argc = 1;
 }
 
+enum {
+    ERROR_READ_SOCKET_CLOSED,
+    ERROR_WRITE_SOCKET,
+    ERROR_ACCEPT_SERVER,
+    ERROR_CONNECT_SOCKET,
+};
+
+typedef struct error_pair {
+    const char *name;
+    const char *message;
+} error_pair_t;
+
+error_pair_t error_messages[] = {
+    {"ReadError", "socket has been closed"},
+    {"WriteError", "error writing to socket"},
+    {"AcceptError", "error listening to accepted connection"},
+    {"NotFoundError", "failed to make connection"},
+};
+
+typedef struct error_desc {
+    u32_t error_id;
+    jerry_value_t this;
+    jerry_value_t function_obj;
+} error_desc_t;
+
+error_desc_t create_error_desc(u32_t error_id, jerry_value_t this,
+                               jerry_value_t function_obj)
+{
+    error_desc_t desc;
+    desc.error_id = error_id;
+    desc.this = this;
+    desc.function_obj = function_obj;
+    return desc;
+}
+
+static void handle_error_arg(void *unused, jerry_value_t argv[], u32_t *argc,
+                             const char *buffer, u32_t bytes)
+{
+    // requires: buffer contains a u32_t with an error constant
+    //  effects: creates an error object with the corresponding text, clears
+    //             the error flag, and sets this as the first arg; the error
+    //             value must be released later (e.g. zjs_release_args)
+    if (bytes != sizeof(error_desc_t)) {
+        DBG_PRINT("invalid data in handle_error_arg");
+        return;
+    }
+
+    error_desc_t *desc = (error_desc_t *)buffer;
+    error_pair_t *pair = &error_messages[desc->error_id];
+
+    jerry_value_t error = zjs_custom_error(pair->name, pair->message,
+                                           desc->this, desc->function_obj);
+    jerry_value_clear_error_flag(&error);
+    argv[0] = error;
+    *argc = 1;
+}
+
 static void tcp_received(struct net_context *context,
                          struct net_pkt *buf,
                          int status,
@@ -274,11 +333,9 @@ static void tcp_received(struct net_context *context,
         // socket close
         DBG_PRINT("closing socket, context=%p, socket=%u\n", context,
                 handle->socket);
-        ZVAL_MUTABLE error = zjs_custom_error("ReadError",
-                "socket has been closed",
-                0, 0);
-        jerry_value_clear_error_flag(&error);
-        zjs_trigger_event(handle->socket, "error", &error, 1, NULL, NULL);
+        error_desc_t desc = create_error_desc(ERROR_READ_SOCKET_CLOSED, 0, 0);
+        zjs_defer_emit_event(handle->socket, "error", &desc, sizeof(desc),
+                             handle_error_arg, zjs_release_args);
         zjs_trigger_event(handle->socket, "close", NULL, 0, post_closed,
                 handle);
         return;
@@ -299,9 +356,8 @@ static void tcp_received(struct net_context *context,
 
             // if not paused, call the callback to get JS the data
             if (!handle->paused) {
-                zjs_defer_emit_event(handle->socket, "data", &handle,
-                                     sizeof(sock_handle_t *), handle_wbuf_arg,
-                                     release_arg_1);
+                zjs_defer_emit_event(handle->socket, "data", NULL, 0,
+                                     handle_wbuf_arg, zjs_release_args);
 
                 DBG_PRINT("data received on context %p: data=%p, len=%u\n",
                           context, data, len);
@@ -373,12 +429,10 @@ static ZJS_DECL_FUNC(socket_write)
         // TODO: may need to check the specific error to determine action
         DBG_PRINT("write failed, context=%p, socket=%u\n", handle->tcp_sock,
                   handle->socket);
-        ZVAL_MUTABLE error = zjs_custom_error("WriteError",
-                                              "error writing to socket", this,
+        error_desc_t desc = create_error_desc(ERROR_WRITE_SOCKET, this,
                                               function_obj);
-        jerry_value_clear_error_flag(&error);
-        zjs_trigger_event(handle->socket, "error", &error, 1, post_closed,
-                          handle);
+        zjs_defer_emit_event(handle->socket, "error", &desc, sizeof(desc),
+                             handle_error_arg, release_close);
         return jerry_create_boolean(false);
     }
 
@@ -580,8 +634,9 @@ static void tcp_accepted(struct net_context *context,
         ERR_PRINT("Cannot receive TCP packet (family %d), ret=%d\n",
                 net_context_get_family(sock_handle->tcp_sock), ret);
         // this seems to mean the remote exists but the connection was not made
-        zjs_trigger_event(sock_handle->handle->server, "error", NULL, 0, NULL,
-                NULL);
+        error_desc_t desc = create_error_desc(ERROR_ACCEPT_SERVER, 0, 0);
+        zjs_defer_emit_event(sock_handle->handle->server, "error", &desc,
+                             sizeof(desc), handle_error_arg, zjs_release_args);
         return;
     }
 
@@ -869,11 +924,10 @@ static ZJS_DECL_FUNC(socket_connect)
     }
     if (!handle->tcp_sock) {
         DBG_PRINT("connect failed\n");
-        ZVAL_MUTABLE error = zjs_custom_error("NotFoundError",
-                                              "Connection could not be made",
-                                              this, function_obj);
-        jerry_value_clear_error_flag(&error);
-        zjs_trigger_event(this, "error", &error, 1, NULL, NULL);
+        error_desc_t desc = create_error_desc(ERROR_CONNECT_SOCKET, this,
+                                              function_obj);
+        zjs_defer_emit_event(this, "error", &desc, sizeof(desc),
+                             handle_error_arg, zjs_release_args);
         return ZJS_UNDEFINED;
     }
 
@@ -928,11 +982,10 @@ static ZJS_DECL_FUNC(socket_connect)
                 sizeof(peer_addr6), tcp_connected, 1, handle) < 0) {
             DBG_PRINT("connect failed\n");
             zjs_obj_add_boolean(this, false, "connecting");
-            ZVAL_MUTABLE error = zjs_custom_error("NotFoundError",
-                                                  "failed to make connection",
-                                                  this, function_obj);
-            jerry_value_clear_error_flag(&error);
-            zjs_trigger_event(this, "error", &error, 1, NULL, NULL);
+            error_desc_t desc = create_error_desc(ERROR_CONNECT_SOCKET, this,
+                                                  function_obj);
+            zjs_defer_emit_event(this, "error", &desc, sizeof(desc),
+                                 handle_error_arg, zjs_release_args);
             return ZJS_UNDEFINED;
         }
     } else {
@@ -961,12 +1014,10 @@ static ZJS_DECL_FUNC(socket_connect)
                                 sizeof(peer_addr4), tcp_connected,
                                 1, handle) < 0) {
             DBG_PRINT("connect failed\n");
-            zjs_obj_add_boolean(this, false, "connecting");
-            ZVAL_MUTABLE error = zjs_custom_error("NotFoundError",
-                                                  "failed to make connection",
-                                                  this, function_obj);
-            jerry_value_clear_error_flag(&error);
-            zjs_trigger_event(this, "error", &error, 1, NULL, NULL);
+            error_desc_t desc = create_error_desc(ERROR_CONNECT_SOCKET, this,
+                                                  function_obj);
+            zjs_defer_emit_event(this, "error", &desc, sizeof(desc),
+                                 handle_error_arg, zjs_release_args);
             return ZJS_UNDEFINED;
         }
     }

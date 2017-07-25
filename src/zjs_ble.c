@@ -509,8 +509,9 @@ static void zjs_ble_blvl_ccc_cfg_changed(const struct bt_gatt_attr *attr,
     }
 }
 
-static void string_arg(jerry_value_t argv[], u32_t *argc, const char *buffer,
-                       u32_t bytes)
+// a zjs_pre_emit callback
+static void string_arg(void *unused, jerry_value_t argv[], u32_t *argc,
+                       const char *buffer, u32_t bytes)
 {
     // requires: buffer contains string with bytes chars including null term
     ZJS_PRINT("()()() HERE IN string-arg with '%s'\n", buffer);
@@ -518,8 +519,9 @@ static void string_arg(jerry_value_t argv[], u32_t *argc, const char *buffer,
     *argc = 1;
 }
 
-static void copy_arg_1(jerry_value_t argv[], u32_t *argc, const char *buffer,
-                       u32_t bytes)
+// a zjs_pre_emit callback
+static void copy_arg_1(void *unused, jerry_value_t argv[], u32_t *argc,
+                       const char *buffer, u32_t bytes)
 {
     // requires: bytes must be sizeof(jerry_value_t) and buffer contains 1 jval
     argv[0] = *(jerry_value_t *)buffer;
@@ -547,7 +549,7 @@ static void zjs_ble_connected(struct bt_conn *conn, u8_t err)
         bt_addr_le_to_str(bt_conn_get_dst(conn), addr, sizeof(addr));
         new_conn->bt_conn = bt_conn_ref(conn);
         zjs_defer_emit_event(ble_handle->ble_obj, "accept", addr,
-                             BT_ADDR_LE_STR_LEN, string_arg, release_arg_1);
+                             BT_ADDR_LE_STR_LEN, string_arg, zjs_release_args);
 
         DBG_PRINT("client connected: %s\n", addr);
     }
@@ -563,7 +565,7 @@ static void zjs_ble_disconnected(struct bt_conn *conn, u8_t reason)
             bt_addr_le_to_str(bt_conn_get_dst(conn), addr, sizeof(addr));
             zjs_defer_emit_event(ble_handle->ble_obj, "disconnect", addr,
                                  BT_ADDR_LE_STR_LEN, string_arg,
-                                 release_arg_1);
+                                 zjs_release_args);
             zjs_ble_release_connection(&ble_handle->connections, ble_conn);
             DBG_PRINT("client disconnected (reason %u): %s\n", reason, addr);
             return;
@@ -595,7 +597,7 @@ static void zjs_ble_bt_ready(int err)
     DBG_PRINT("bt_ready() is called [err %d]\n", err);
     const char state[] = "poweredOn";
     zjs_defer_emit_event(ble_handle->ble_obj, "stateChange", state,
-                         sizeof(state), string_arg, release_arg_1);
+                         sizeof(state), string_arg, zjs_release_args);
 }
 
 void zjs_ble_enable()
@@ -813,7 +815,7 @@ static ZJS_DECL_FUNC(zjs_ble_start_advertising)
     }
     ZJS_PRINT("ERROR VALUE:  ---------------> %p\n", error);
     zjs_defer_emit_event(ble_handle->ble_obj, "advertisingStart", &error,
-                         sizeof(jerry_value_t), copy_arg_1, release_arg_1);
+                         sizeof(jerry_value_t), copy_arg_1, zjs_release_args);
     DBG_PRINT("BLE event: advertisingStart\n");
 
     zjs_free(url_frame);
@@ -1243,7 +1245,7 @@ static ZJS_DECL_FUNC(zjs_ble_update_rssi)
     // TODO: get actual RSSI value from Zephyr Bluetooth driver
     jerry_value_t arg = jerry_create_number(-50);
     zjs_defer_emit_event(ble_handle->ble_obj, "rssiUpdate", &arg,
-                         sizeof(jerry_value_t), copy_arg_1, release_arg_1);
+                         sizeof(jerry_value_t), copy_arg_1, zjs_release_args);
     return ZJS_UNDEFINED;
 }
 

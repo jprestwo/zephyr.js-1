@@ -421,7 +421,9 @@ static void emit_event_callback(void *handle, const void *args) {
     ZJS_PRINT("EMIT EVENT CB\n");
     const emit_event_t *emit = (const emit_event_t *)args;
     ZJS_PRINT("*** obj = %p, pre = %p, post = %p, len = %d\n",
-              emit->obj, emit->pre, emit->post, emit->length);
+              (void *)emit->obj, emit->pre, emit->post, emit->length);
+
+    void *user_handle = zjs_event_get_user_handle(emit->obj);
 
     // prepare arguments for the event
     jerry_value_t argv[MAX_EVENT_ARGS];
@@ -429,7 +431,7 @@ static void emit_event_callback(void *handle, const void *args) {
     u32_t argc = 0;
     if (emit->pre) {
         ZJS_PRINT("BEFORE...\n");
-        emit->pre(argv, &argc, emit->data, emit->length);
+        emit->pre(user_handle, argv, &argc, emit->data, emit->length);
         ZJS_PRINT("AFTER...\n");
     }
     ZJS_PRINT("NEXT...\n");
@@ -437,7 +439,7 @@ static void emit_event_callback(void *handle, const void *args) {
         ZJS_PRINT("HERE...\n");
         argp = NULL;
     }
-    ZJS_PRINT("argv[0]: %p, argp[0]: %p\n", argv[0], argp[0]);
+    ZJS_PRINT("argv[0]: %p, argp[0]: %p\n", (void *)argv[0], (void *)argp[0]);
 
     // emit the event
     zjs_emit_event(emit->obj, emit->data + emit->length, argp, argc);
@@ -446,15 +448,18 @@ static void emit_event_callback(void *handle, const void *args) {
     // free args
     if (emit->post) {
         // TODO: figure out what is needed for args here
-        emit->post(argv);
+        emit->post(user_handle, argv, argc);
     }
 }
 
-void release_arg_1(jerry_value_t argv[])
+// a zjs_post_emit callback
+void zjs_release_args(void *unused, jerry_value_t argv[], u32_t argc)
 {
-    // effects: releases one jerry value from argv
-    ZJS_PRINT("JRV OF *************** %p\n", argv[0]);
-    jerry_release_value(argv[0]);
+    // effects: releases all jerry values in argv
+    for (int i = 0; i < argc; i++) {
+        ZJS_PRINT("JRV OF *************** %p\n", (void *)argv[i]);
+        jerry_release_value(argv[i]);
+    }
 }
 
 void zjs_defer_emit_event(jerry_value_t obj, const char *event,
@@ -501,7 +506,7 @@ bool zjs_emit_event(jerry_value_t obj, const char *event_name,
         return false;
     }
 
-    ZJS_PRINT("argv[0]: %p, argc: %d\n", argv[0], argc);
+    ZJS_PRINT("argv[0]: %p, argc: %d\n", (void *)argv[0], argc);
 
     // call the listeners in order
     listener_t *listener = event->listeners;

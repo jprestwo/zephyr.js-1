@@ -13,17 +13,24 @@
  *
  * The callback is responsible for setting up the arguments
  *
- * @param handle        Handle given to zjs_trigger_event()
+ * @param handle        Event user handle provided to zjs_make_event
+ * @param argv          Arg array w/ max of four args to be set up
+ * @param argc          Pointer to arg count to be set (default 0)
+ * @param buffer        Data provided to zjs_defer_emit_event from which to
+ *                        construct arguments
+ * @param length        Length of buffer
  */
-typedef void (*zjs_pre_emit)(jerry_value_t argv[], u32_t *argc,
+typedef void (*zjs_pre_emit)(void *handle, jerry_value_t argv[], u32_t *argc,
                              const char *buffer, u32_t length);
 
 /**
  * Callback prototype for after an event is emitted
  *
- * @param handle        Handle given to zjs_trigger_event()
+ * @param handle        Event user handle provided to zjs_make_event
+ * @param argv          Arg array w/ max of four args to be cleaned up
+ * @param argc          Arg count
  */
-typedef void (*zjs_post_emit)(jerry_value_t argv[]);
+typedef void (*zjs_post_emit)(void *handle, jerry_value_t argv[], u32_t argc);
 
 /**
  * Callback prototype for after an event is triggered
@@ -113,9 +120,11 @@ bool zjs_emit_event(jerry_value_t obj, const char *event_name,
 // emit helpers
 
 /**
- * Releases the jerry_value_t in argv[0]
+ * Releases the jerry_value_t's in argv
+ *
+ * A zjs_post_emit callback.
  */
-void release_arg_1(jerry_value_t argv[]);
+void zjs_release_args(void *unused, jerry_value_t argv[], u32_t argc);
 
 /**
  * Trigger an event
