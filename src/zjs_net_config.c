@@ -357,7 +357,7 @@ jerry_value_t zjs_net_config_init(void)
 #ifdef CONFIG_NET_L2_BLUETOOTH
     zjs_obj_add_function(config, set_ble_address, "setBleAddress");
 #endif
-    zjs_make_event(config, ZJS_UNDEFINED);
+    zjs_make_event(config, ZJS_UNDEFINED, NULL);
 
     struct net_if *iface = net_if_get_default();
     if (atomic_test_bit(iface->flags, NET_IF_UP)) {

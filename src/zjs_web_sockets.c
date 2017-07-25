@@ -528,7 +528,7 @@ static jerry_value_t create_ws_connection(ws_connection_t *con)
     zjs_obj_add_function(conn, ws_pong, "pong");
     zjs_obj_add_function(conn, ws_terminate, "terminate");
     jerry_set_object_native_pointer(conn, con, &ws_type_info);
-    zjs_make_event(conn, ZJS_UNDEFINED);
+    zjs_make_event(conn, ZJS_UNDEFINED, NULL);
     if (con->server_handle->track) {
         ZVAL clients = zjs_get_property(con->server_handle->server, "clients");
         ZVAL new = push_array(clients, conn);
@@ -885,7 +885,7 @@ static ZJS_DECL_FUNC(ws_server)
     handle->server = server;
     handle->max_payload = (u16_t)max_payload;
 
-    zjs_make_event(server, ZJS_UNDEFINED);
+    zjs_make_event(server, ZJS_UNDEFINED, NULL);
 
     jerry_set_object_native_pointer(server, handle, &server_type_info);
 
