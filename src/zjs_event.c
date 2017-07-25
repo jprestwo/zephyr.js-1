@@ -450,6 +450,13 @@ static void emit_event_callback(void *handle, const void *args) {
     }
 }
 
+void release_arg_1(jerry_value_t argv[])
+{
+    // effects: releases one jerry value from argv
+    ZJS_PRINT("JRV OF *************** %p\n", argv[0]);
+    jerry_release_value(argv[0]);
+}
+
 void zjs_defer_emit_event(jerry_value_t obj, const char *event,
                           const void *buffer, int bytes,
                           zjs_pre_emit pre, zjs_post_emit post)

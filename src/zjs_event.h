@@ -110,6 +110,13 @@ void zjs_defer_emit_event(jerry_value_t obj, const char *event,
 bool zjs_emit_event(jerry_value_t obj, const char *event_name,
                     const jerry_value_t argv[], u32_t argc);
 
+// emit helpers
+
+/**
+ * Releases the jerry_value_t in argv[0]
+ */
+void release_arg_1(jerry_value_t argv[]);
+
 /**
  * Trigger an event
  *

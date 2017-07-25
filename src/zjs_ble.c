@@ -527,13 +527,6 @@ static void copy_arg_1(jerry_value_t argv[], u32_t *argc, const char *buffer,
     *argc = 1;
 }
 
-static void release_arg_1(jerry_value_t argv[])
-{
-    // effects: releases one jerry value from argv
-    ZJS_PRINT("JRV OF *************** %p\n", argv[0]);
-    jerry_release_value(argv[0]);
-}
-
 // INTERRUPT SAFE FUNCTION: No JerryScript VM, allocs, or release prints!
 static void zjs_ble_connected(struct bt_conn *conn, u8_t err)
 {

@@ -112,7 +112,6 @@ typedef struct sock_handle {
     struct sock_handle *next;
     struct k_timer timer;
     u32_t timeout;
-    zjs_callback_id tcp_read_id;
     zjs_callback_id tcp_connect_id;
     u8_t bound;
     u8_t paused;
@@ -189,26 +188,6 @@ static void start_socket_timeout(sock_handle_t *handle)
     }
 }
 
-static void tcp_c_callback(void *h, const void *args)
-{
-    sock_handle_t *handle = (sock_handle_t *)h;
-    if (handle) {
-        // find length of unconsumed data in read buffer
-        u32_t len = handle->wptr - handle->rptr;
-        zjs_buffer_t *zbuf;
-        ZVAL data_buf = zjs_buffer_create(len, &zbuf);
-        // copy data from read buffer
-        memcpy(zbuf->buffer, handle->rptr, len);
-        handle->rptr = handle->wptr = handle->rbuf;
-
-        zjs_trigger_event(handle->socket, "data", &data_buf, 1, NULL, NULL);
-
-        zjs_remove_callback(handle->tcp_read_id);
-    } else {
-        ERR_PRINT("handle is NULL\n");
-    }
-}
-
 static void post_server_closed(void *handle)
 {
     net_handle_t *h = (net_handle_t *)handle;
@@ -256,6 +235,34 @@ static void post_closed(void *handle)
     }
 }
 
+static void handle_wbuf_arg(jerry_value_t argv[], u32_t *argc,
+                            const char *buffer, u32_t bytes)
+{
+    // requires: buffer contains a sock_handle_t pointer
+    
+    if (bytes != sizeof(sock_handle_t *)) {
+        ERR_PRINT("invalid data in handle_wbuf_arg");
+        return;
+    }
+    sock_handle_t *handle = *(sock_handle_t **)buffer;
+
+    // find length of unconsumed data in read buffer
+    u32_t len = handle->wptr - handle->rptr;
+    zjs_buffer_t *zbuf;
+    jerry_value_t data_buf = zjs_buffer_create(len, &zbuf);
+    if (!zbuf) {
+        // out of memory
+        return;
+    }
+
+    // copy data from read buffer
+    memcpy(zbuf->buffer, handle->rptr, len);
+    handle->rptr = handle->wptr = handle->rbuf;
+
+    argv[0] = data_buf;
+    *argc = 1;
+}
+
 static void tcp_received(struct net_context *context,
                          struct net_pkt *buf,
                          int status,
@@ -292,9 +299,9 @@ static void tcp_received(struct net_context *context,
 
             // if not paused, call the callback to get JS the data
             if (!handle->paused) {
-                handle->tcp_read_id = zjs_add_c_callback(handle,
-                                                         tcp_c_callback);
-                zjs_signal_callback(handle->tcp_read_id, NULL, 0);
+                zjs_defer_emit_event(handle->socket, "data", &handle,
+                                     sizeof(sock_handle_t *), handle_wbuf_arg,
+                                     release_arg_1);
 
                 DBG_PRINT("data received on context %p: data=%p, len=%u\n",
                           context, data, len);
@@ -479,6 +486,12 @@ static jerry_value_t create_socket(u8_t client, sock_handle_t **handle_out)
     }
     memset(sock_handle, 0, sizeof(sock_handle_t));
 
+    sock_handle->rbuf = zjs_malloc(SOCK_READ_BUF_SIZE);
+    if (!sock_handle->rbuf) {
+        zjs_free(sock_handle);
+        return zjs_error_context("out of memory", 0, 0);
+    }
+
     jerry_value_t socket = jerry_create_object();
 
     if (client) {
@@ -489,8 +502,6 @@ static jerry_value_t create_socket(u8_t client, sock_handle_t **handle_out)
     sock_handle->connect_listener = ZJS_UNDEFINED;
     sock_handle->socket = socket;
     sock_handle->tcp_connect_id = -1;
-    sock_handle->tcp_read_id = -1;
-    sock_handle->rbuf = zjs_malloc(SOCK_READ_BUF_SIZE);
     sock_handle->rptr = sock_handle->wptr = sock_handle->rbuf;
 
     zjs_make_event(socket, zjs_net_socket_prototype, sock_handle);
