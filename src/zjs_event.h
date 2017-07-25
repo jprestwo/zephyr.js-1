@@ -33,6 +33,14 @@ typedef void (*zjs_post_emit)(jerry_value_t argv[]);
 typedef void (*zjs_post_event)(void *handle);
 
 /**
+ * FIXME: Make sure this is actually used before we check it in
+ * Callback prototype for when an event object is freed
+ *
+ * @param handle        Handle given to zjs_make_event()
+ */
+typedef void (*zjs_event_free)(void *handle);
+
+/**
  * Turn an object into an event object. After this call the object will have
  * all the event functions like addListener(), on(), etc. This object can also
  * be used to trigger events in C. If the object needs no other prototype, pass
@@ -42,8 +50,17 @@ typedef void (*zjs_post_event)(void *handle);
  *
  * @param obj           Object to turn into an event object
  * @param prototype     Object to decorate and use as prototype, or undefined
+ * @param user_handle   A handle the caller can get back later
  */
-void zjs_make_event(jerry_value_t obj, jerry_value_t prototype);
+void zjs_make_event(jerry_value_t obj, jerry_value_t prototype,
+                    void *user_handle);
+
+/**
+ * Get back the user handle for this event supplied to zjs_make_event
+ *
+ * @param obj           Object to turn into an event object
+ */
+void *zjs_event_get_user_handle(jerry_value_t obj);
 
 /**
  * Add a new event listener to an event object.
@@ -60,18 +77,19 @@ jerry_value_t zjs_add_event_listener(jerry_value_t obj, const char *event_name,
 /**
  * Emit an event from a callback on the main thread
  *
- * FIXME: We need to describe how the ownership of args values works; it appears
- *        maybe the caller needs to keep them live (acquired) and then release
- *        them in post; or could we simplify this by acquiring them ourselves
- *        here and releasing our copies later? Then the caller would just
- *        release theirs immediately after the zjs_trigger_event call.
+ * This can be called from interrupt context or another thread, so to avoid any
+ * JerryScript calls, it takes data in a simple buffer format. This could be a
+ * struct that the caller understands. When we switch over to the main thread
+ * and prepare to emit the event, we will call the supplied 'pre' function that
+ * will turn that data into a JerryScript argument list. The 'post' function
+ * gives a chance to release references to them.
  *
  * @param obj           Object that contains the event to be triggered
  * @param event         Name of event
- * @param args          Arguments to give to the event listener as parameters
- * @param args_cnt      Number of arguments
- * @param post          Function to be called after the event is triggered
- * @param handle        A handle that is accessible in the 'post' call
+ * @param buffer        Data needed to call event listeners
+ * @param bytes         Size of buffer
+ * @param pre           Arg setup function called before event emitted
+ * @param post          Arg teardown function called after event emitted
  *
  * @return              True if there were listeners
  */
@@ -84,10 +102,8 @@ void zjs_defer_emit_event(jerry_value_t obj, const char *event,
  *
  * @param obj           Object that contains the event to be triggered
  * @param event         Name of event
- * @param args          Arguments to give to the event listener as parameters
- * @param args_cnt      Number of arguments
- * @param post          Function to be called after the event is triggered
- * @param handle        A handle that is accessable in the 'post' call
+ * @param argv          Arguments to give to the event listeners as parameters
+ * @param argc          Number of arguments
  *
  * @return              True if there were listeners
  */

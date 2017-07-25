@@ -114,7 +114,6 @@ typedef struct sock_handle {
     u32_t timeout;
     zjs_callback_id tcp_read_id;
     zjs_callback_id tcp_connect_id;
-    zjs_callback_id tcp_timeout_id;
     u8_t bound;
     u8_t paused;
     u8_t *rbuf;
@@ -123,13 +122,18 @@ typedef struct sock_handle {
 
 static sock_handle_t *opened_sockets = NULL;
 
-static const jerry_object_native_info_t socket_type_info = {
-    .free_cb = free_handle_nop
-};
-
 static const jerry_object_native_info_t net_type_info = {
    .free_cb = free_handle_nop
 };
+
+// get the socket handle from the object or NULL
+#define GET_SOCK_HANDLE(obj, var)  \
+    sock_handle_t *var = (sock_handle_t *)zjs_event_get_user_handle(obj);
+
+// get the socket handle or return a JS error
+#define GET_SOCK_HANDLE_JS(obj, var)                                       \
+    sock_handle_t *var = (sock_handle_t *)zjs_event_get_user_handle(obj);  \
+    if (!var) { return zjs_error("no socket handle"); }
 
 #define CHECK(x)                                 \
     ret = (x);                                   \
@@ -142,20 +146,6 @@ static const jerry_object_native_info_t net_type_info = {
 #define NET_HOSTNAME_MAX            32
 #define SOCK_READ_BUF_SIZE          128
 
-static void tcp_c_timeout_callback(void *h, const void *args)
-{
-    sock_handle_t *sock_handle = (sock_handle_t *)h;
-    if (sock_handle && opened_sockets) {
-        zjs_trigger_event(sock_handle->socket, "timeout", NULL, 0, NULL, NULL);
-        k_timer_stop(&sock_handle->timer);
-        // TODO: This may not be correct, but if we don't set it, then more
-        //       timeouts will get added, potentially after the socket has been
-        //       closed
-        sock_handle->timeout = 0;
-        DBG_PRINT("socket timed out\n");
-    }
-}
-
 static void socket_timeout_callback(struct k_timer *timer)
 {
     sock_handle_t *cur = opened_sockets;
@@ -164,7 +154,15 @@ static void socket_timeout_callback(struct k_timer *timer)
             break;
         }
     }
-    zjs_signal_callback(cur->tcp_timeout_id, NULL, 0);
+    if (cur) {
+        zjs_defer_emit_event(cur->socket, "timeout", NULL, 0, NULL, NULL);
+        k_timer_stop(&cur->timer);
+        // TODO: This may not be correct, but if we don't set it, then more
+        //       timeouts will get added, potentially after the socket has been
+        //       closed
+        cur->timeout = 0;
+        DBG_PRINT("socket timed out\n");
+    }
 }
 
 /*
@@ -175,25 +173,20 @@ static void socket_timeout_callback(struct k_timer *timer)
  *              If a timeout has been started this will stop it
  * time > 0     Will start a timeout for the socket
  */
-static void start_socket_timeout(sock_handle_t *handle, u32_t time)
+static void start_socket_timeout(sock_handle_t *handle)
 {
-    if (time) {
+    if (handle->timeout) {
         if (!handle->timer_started) {
             // time has not been started
             k_timer_init(&handle->timer, socket_timeout_callback, NULL);
             handle->timer_started = 1;
         }
-        k_timer_start(&handle->timer, time, time);
-        if (handle->tcp_timeout_id == -1) {
-            handle->tcp_timeout_id = zjs_add_c_callback(handle,
-                tcp_c_timeout_callback);
-        }
+        k_timer_start(&handle->timer, handle->timeout, handle->timeout);
         DBG_PRINT("starting socket timeout: %u\n", time);
     } else if (handle->timer_started) {
         DBG_PRINT("stoping socket timeout\n");
         k_timer_stop(&handle->timer);
     }
-    handle->timeout = time;
 }
 
 static void tcp_c_callback(void *h, const void *args)
@@ -285,7 +278,7 @@ static void tcp_received(struct net_context *context,
     }
 
     if (handle && buf) {
-        start_socket_timeout(handle, handle->timeout);
+        start_socket_timeout(handle);
 
         u32_t len = net_pkt_appdatalen(buf);
         u8_t *data = net_pkt_appdata(buf);
@@ -339,9 +332,9 @@ static ZJS_DECL_FUNC(socket_write)
 {
     ZJS_VALIDATE_ARGS_OPTCOUNT(optcount, Z_OBJECT, Z_OPTIONAL Z_FUNCTION);
 
-    ZJS_GET_HANDLE(this, sock_handle_t, handle, socket_type_info);
+    GET_SOCK_HANDLE_JS(this, handle);
 
-    start_socket_timeout(handle, handle->timeout);
+    start_socket_timeout(handle);
 
     zjs_buffer_t *buf = zjs_buffer_find(argv[0]);
     struct net_pkt *send_buf;
@@ -396,7 +389,7 @@ static ZJS_DECL_FUNC(socket_write)
  */
 static ZJS_DECL_FUNC(socket_pause)
 {
-    ZJS_GET_HANDLE(this, sock_handle_t, handle, socket_type_info);
+    GET_SOCK_HANDLE_JS(this, handle);
     handle->paused = 1;
     return ZJS_UNDEFINED;
 }
@@ -410,7 +403,7 @@ static ZJS_DECL_FUNC(socket_pause)
  */
 static ZJS_DECL_FUNC(socket_resume)
 {
-    ZJS_GET_HANDLE(this, sock_handle_t, handle, socket_type_info);
+    GET_SOCK_HANDLE_JS(this, handle);
     handle->paused = 0;
     return ZJS_UNDEFINED;
 }
@@ -424,7 +417,7 @@ static ZJS_DECL_FUNC(socket_resume)
  */
 static ZJS_DECL_FUNC(socket_address)
 {
-    ZJS_GET_HANDLE(this, sock_handle_t, handle, socket_type_info);
+    GET_SOCK_HANDLE_JS(this, handle);
     jerry_value_t ret = jerry_create_object();
     ZVAL port = zjs_get_property(this, "localPort");
     ZVAL addr = zjs_get_property(this, "localAddress");
@@ -457,11 +450,12 @@ static ZJS_DECL_FUNC(socket_set_timeout)
 {
     ZJS_VALIDATE_ARGS_OPTCOUNT(optcount, Z_NUMBER, Z_OPTIONAL Z_FUNCTION);
 
-    ZJS_GET_HANDLE(this, sock_handle_t, handle, socket_type_info);
+    GET_SOCK_HANDLE_JS(this, handle);
 
     u32_t time = (u32_t)jerry_get_number_value(argv[0]);
+    handle->timeout = time;
 
-    start_socket_timeout(handle, time);
+    start_socket_timeout(handle);
 
     if (optcount) {
         zjs_add_event_listener(this, "timeout", argv[1]);
@@ -492,16 +486,14 @@ static jerry_value_t create_socket(u8_t client, sock_handle_t **handle_out)
         zjs_obj_add_function(socket, socket_connect, "connect");
     }
 
-    jerry_set_object_native_pointer(socket, sock_handle, &socket_type_info);
     sock_handle->connect_listener = ZJS_UNDEFINED;
     sock_handle->socket = socket;
     sock_handle->tcp_connect_id = -1;
     sock_handle->tcp_read_id = -1;
-    sock_handle->tcp_timeout_id = -1;
     sock_handle->rbuf = zjs_malloc(SOCK_READ_BUF_SIZE);
     sock_handle->rptr = sock_handle->wptr = sock_handle->rbuf;
 
-    zjs_make_event(socket, zjs_net_socket_prototype);
+    zjs_make_event(socket, zjs_net_socket_prototype, sock_handle);
 
     *handle_out = sock_handle;
 
@@ -517,14 +509,9 @@ static void add_socket_connection(jerry_value_t socket,
                                   struct net_context *new,
                                   struct sockaddr *remote)
 {
-    sock_handle_t *handle = NULL;
-    const jerry_object_native_info_t *tmp;
-    if (!jerry_get_object_native_pointer(socket, (void **)&handle, &tmp)) {
+    GET_SOCK_HANDLE(socket, handle);
+    if (!handle) {
         ERR_PRINT("could not get socket handle\n");
-        return;
-    }
-    if (tmp != &socket_type_info) {
-        ERR_PRINT("handle was incorrect type\n");
         return;
     }
 
@@ -787,7 +774,7 @@ static ZJS_DECL_FUNC(net_create_server)
     zjs_obj_add_boolean(server, false, "listening");
     zjs_obj_add_number(server, NET_DEFAULT_MAX_CONNECTIONS, "maxConnections");
 
-    zjs_make_event(server, zjs_net_server_prototype);
+    zjs_make_event(server, zjs_net_server_prototype, NULL);
 
     if (optcount) {
         zjs_add_event_listener(server, "connection", argv[0]);
@@ -835,7 +822,7 @@ static void tcp_connected(struct net_context *context, int status,
                 ERR_PRINT("Cannot receive TCP packets (%d)\n", ret);
             }
             // activity, restart timeout
-            start_socket_timeout(sock_handle, sock_handle->timeout);
+            start_socket_timeout(sock_handle);
 
             sock_handle->tcp_connect_id = zjs_add_c_callback(sock_handle,
                 tcp_connected_c_callback);
@@ -862,8 +849,9 @@ static ZJS_DECL_FUNC(socket_connect)
 {
     ZJS_VALIDATE_ARGS(Z_OBJECT, Z_OPTIONAL Z_FUNCTION);
 
+    GET_SOCK_HANDLE_JS(this, handle);
+
     int ret;
-    ZJS_GET_HANDLE(this, sock_handle_t, handle, socket_type_info);
     if (!handle->tcp_sock) {
         CHECK(net_context_get(AF_INET6, SOCK_STREAM, IPPROTO_TCP,
                               &handle->tcp_sock));

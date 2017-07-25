@@ -29,6 +29,9 @@ typedef struct event {
 typedef struct emitter {
     int max_listeners;
     event_t *events;
+    void *user_handle;
+    // FIXME: may not need this
+    zjs_event_free user_free;
 } emitter_t;
 
 static void zjs_emitter_free_cb(void *native)
@@ -40,6 +43,10 @@ static void zjs_emitter_free_cb(void *native)
         event = event->next;
     }
     ZJS_LIST_FREE(event_t, handle->events, zjs_free);
+    // FIXME: may not need this
+    if (handle->user_free) {
+        handle->user_free(handle->user_handle);
+    }
     zjs_free(handle);
 }
 
@@ -459,7 +466,10 @@ void zjs_defer_emit_event(jerry_value_t obj, const char *event,
     emit->pre = pre;
     emit->post = post;
     emit->length = bytes;
-    memcpy(emit->data, buffer, bytes);
+    if (buffer && bytes) {
+        memcpy(emit->data, buffer, bytes);
+    }
+    // assert: if buffer is null, bytes should be 0, and vice versa
     strcpy(emit->data + bytes, event);
     ZJS_PRINT("EMIT ID: %d\n", emit_id);
     zjs_signal_callback(emit_id, buf, len);
@@ -574,7 +584,8 @@ bool zjs_trigger_event_now(jerry_value_t obj,
     return true;
 }
 
-void zjs_make_event(jerry_value_t obj, jerry_value_t prototype)
+void zjs_make_event(jerry_value_t obj, jerry_value_t prototype,
+                    void *user_data)
 {
     ZVAL event_obj = jerry_create_object();
 
@@ -596,13 +607,26 @@ void zjs_make_event(jerry_value_t obj, jerry_value_t prototype)
     emitter_t *emitter = zjs_malloc(sizeof(emitter_t));
     emitter->max_listeners = 10;
     emitter->events = NULL;
+    /* FIXME: may not be needed
+    emitter->user_free = free_cb;
+    */
+    emitter->user_handle = user_data;
     jerry_set_object_native_pointer(obj, emitter, &emitter_type_info);
+}
+
+void *zjs_event_get_user_handle(jerry_value_t obj)
+{
+    ZJS_GET_HANDLE_OR_NULL(obj, emitter_t, handle, emitter_type_info);
+    if (handle) {
+        return handle->user_handle;
+    }
+    return NULL;
 }
 
 static ZJS_DECL_FUNC(event_constructor)
 {
     jerry_value_t new_emitter = jerry_create_object();
-    zjs_make_event(new_emitter, ZJS_UNDEFINED);
+    zjs_make_event(new_emitter, ZJS_UNDEFINED, NULL);
     return new_emitter;
 }
 
