@@ -188,13 +188,14 @@ static void start_socket_timeout(sock_handle_t *handle)
     }
 }
 
-static void post_server_closed(void *handle)
+// a zjs_post_emit callback
+static void close_server(void *handle, jerry_value_t argv[], u32_t argc)
 {
-    net_handle_t *h = (net_handle_t *)handle;
-    if (h) {
+    sock_handle_t *h = (sock_handle_t *)handle;
+    if (h->handle) {
         DBG_PRINT("closing server\n");
-        net_context_put(h->tcp_sock);
-        zjs_free(h);
+        net_context_put(h->handle->tcp_sock);
+        zjs_free(h->handle);
     }
 }
 
@@ -227,8 +228,8 @@ static void post_closed(void *handle)
         if (net) {
             if (net->listening == 0 && opened_sockets == NULL) {
                 // no more sockets open and not listening, close server
-                zjs_trigger_event(net->server, "close", NULL, 0,
-                                  post_server_closed, net);
+                zjs_defer_emit_event(net->server, "close", NULL, 0, NULL,
+                                     close_server);
                 DBG_PRINT("server signaled to close\n");
             }
         }
@@ -239,7 +240,9 @@ static void post_closed(void *handle)
 static void release_close(void *h, jerry_value_t argv[], u32_t argc)
 {
     post_closed(h);
-    zjs_release_args(h, argv, argc);
+    if (argc) {
+        zjs_release_args(h, argv, argc);
+    }
 }
 
 static void handle_wbuf_arg(void *h, jerry_value_t argv[], u32_t *argc,
@@ -336,8 +339,8 @@ static void tcp_received(struct net_context *context,
         error_desc_t desc = create_error_desc(ERROR_READ_SOCKET_CLOSED, 0, 0);
         zjs_defer_emit_event(handle->socket, "error", &desc, sizeof(desc),
                              handle_error_arg, zjs_release_args);
-        zjs_trigger_event(handle->socket, "close", NULL, 0, post_closed,
-                handle);
+        zjs_defer_emit_event(handle->socket, "close", NULL, 0, NULL,
+                             release_close);
         return;
     }
 
@@ -700,8 +703,9 @@ static ZJS_DECL_FUNC(server_close)
     }
     // If there are no connections the server can be closed
     if (opened_sockets == NULL) {
-        zjs_trigger_event(handle->server, "close", NULL, 0, post_server_closed,
-                          handle);
+        // NOTE: could emit immediately but safer for call stack to defer
+        zjs_defer_emit_event(handle->server, "close", NULL, 0, NULL,
+                             close_server);
         DBG_PRINT("server signaled to close\n");
     }
     return ZJS_UNDEFINED;
