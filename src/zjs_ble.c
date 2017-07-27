@@ -519,16 +519,6 @@ static void string_arg(void *unused, jerry_value_t argv[], u32_t *argc,
     *argc = 1;
 }
 
-// a zjs_pre_emit callback
-static void copy_arg_1(void *unused, jerry_value_t argv[], u32_t *argc,
-                       const char *buffer, u32_t bytes)
-{
-    // requires: bytes must be sizeof(jerry_value_t) and buffer contains 1 jval
-    argv[0] = *(jerry_value_t *)buffer;
-    ZJS_PRINT("ERROR VALUE2: ---------------> %p\n", argv[0]);
-    *argc = 1;
-}
-
 // INTERRUPT SAFE FUNCTION: No JerryScript VM, allocs, or release prints!
 static void zjs_ble_connected(struct bt_conn *conn, u8_t err)
 {
@@ -815,7 +805,7 @@ static ZJS_DECL_FUNC(zjs_ble_start_advertising)
     }
     ZJS_PRINT("ERROR VALUE:  ---------------> %p\n", error);
     zjs_defer_emit_event(ble_handle->ble_obj, "advertisingStart", &error,
-                         sizeof(jerry_value_t), copy_arg_1, zjs_release_args);
+                         sizeof(jerry_value_t), zjs_copy_arg, zjs_release_args);
     DBG_PRINT("BLE event: advertisingStart\n");
 
     zjs_free(url_frame);
@@ -1245,7 +1235,7 @@ static ZJS_DECL_FUNC(zjs_ble_update_rssi)
     // TODO: get actual RSSI value from Zephyr Bluetooth driver
     jerry_value_t arg = jerry_create_number(-50);
     zjs_defer_emit_event(ble_handle->ble_obj, "rssiUpdate", &arg,
-                         sizeof(jerry_value_t), copy_arg_1, zjs_release_args);
+                         sizeof(jerry_value_t), zjs_copy_arg, zjs_release_args);
     return ZJS_UNDEFINED;
 }
 

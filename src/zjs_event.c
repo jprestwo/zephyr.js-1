@@ -452,10 +452,23 @@ static void emit_event_callback(void *handle, const void *args) {
     }
 }
 
+// a zjs_pre_emit callback
+void zjs_copy_arg(void *unused, jerry_value_t argv[], u32_t *argc,
+                  const char *buffer, u32_t bytes)
+{
+    // requires: buffer contains one jerry_value_t
+    if (bytes != sizeof(jerry_value_t)) {
+        // shouldn't get here if used correctly
+        DBG_PRINT("Warning: Expected one jerry value");
+    }
+    argv[0] = *(jerry_value_t *)buffer;
+    *argc = 1;
+}
+
 // a zjs_post_emit callback
 void zjs_release_args(void *unused, jerry_value_t argv[], u32_t argc)
 {
-    // effects: releases all jerry values in argv
+    // effects: releases all jerry values in argv baesd on argc count
     for (int i = 0; i < argc; i++) {
         ZJS_PRINT("JRV OF *************** %p\n", (void *)argv[i]);
         jerry_release_value(argv[i]);

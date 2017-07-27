@@ -112,7 +112,6 @@ typedef struct sock_handle {
     struct sock_handle *next;
     struct k_timer timer;
     u32_t timeout;
-    zjs_callback_id tcp_connect_id;
     u8_t bound;
     u8_t paused;
     u8_t *rbuf;
@@ -245,10 +244,10 @@ static void release_close(void *h, jerry_value_t argv[], u32_t argc)
     }
 }
 
+// a zjs_pre_emit_callback
 static void handle_wbuf_arg(void *h, jerry_value_t argv[], u32_t *argc,
                             const char *buffer, u32_t bytes)
 {
-    // requires: buffer contains a sock_handle_t pointer
     sock_handle_t *handle = (sock_handle_t *)h;
 
     // find length of unconsumed data in read buffer
@@ -303,6 +302,7 @@ error_desc_t create_error_desc(u32_t error_id, jerry_value_t this,
     return desc;
 }
 
+// a zjs_pre_emit callback
 static void handle_error_arg(void *unused, jerry_value_t argv[], u32_t *argc,
                              const char *buffer, u32_t bytes)
 {
@@ -339,6 +339,9 @@ static void tcp_received(struct net_context *context,
         error_desc_t desc = create_error_desc(ERROR_READ_SOCKET_CLOSED, 0, 0);
         zjs_defer_emit_event(handle->socket, "error", &desc, sizeof(desc),
                              handle_error_arg, zjs_release_args);
+
+        // note: we're not really releasing anything but release_close will
+        //   just ignore the 0 args and this way we don't need a new function
         zjs_defer_emit_event(handle->socket, "close", NULL, 0, NULL,
                              release_close);
         return;
@@ -558,7 +561,6 @@ static jerry_value_t create_socket(u8_t client, sock_handle_t **handle_out)
 
     sock_handle->connect_listener = ZJS_UNDEFINED;
     sock_handle->socket = socket;
-    sock_handle->tcp_connect_id = -1;
     sock_handle->rptr = sock_handle->wptr = sock_handle->rbuf;
 
     zjs_make_event(socket, zjs_net_socket_prototype, sock_handle);
@@ -619,7 +621,9 @@ static void tcp_accepted(struct net_context *context,
 
     DBG_PRINT("connection made, context %p error %d\n", context, error);
 
-    ZVAL sock = create_socket(false, &sock_handle);
+    // FIXME: this shouldn't really be getting called here because it runs in
+    //   a networking thread but is doing malloc and jerryscriptt calls
+    jerry_value_t sock = create_socket(false, &sock_handle);
     if (!sock_handle) {
         ERR_PRINT("could not allocate socket handle\n");
         return;
@@ -640,11 +644,12 @@ static void tcp_accepted(struct net_context *context,
         error_desc_t desc = create_error_desc(ERROR_ACCEPT_SERVER, 0, 0);
         zjs_defer_emit_event(sock_handle->handle->server, "error", &desc,
                              sizeof(desc), handle_error_arg, zjs_release_args);
+        jerry_release_value(sock);
         return;
     }
 
-    zjs_trigger_event(handle->server, "connection", &sock, 1, NULL,
-            sock_handle);
+    zjs_defer_emit_event(handle->server, "connection", &sock, sizeof(sock),
+                         zjs_copy_arg, zjs_release_args);
 }
 
 /**
@@ -809,10 +814,18 @@ static ZJS_DECL_FUNC(server_listen)
     handle->listening = 1;
     handle->port = (u16_t)port;
 
-    memcpy(&handle->local, zjs_net_config_get_ip(handle->tcp_sock), sizeof(struct sockaddr));
+    memcpy(&handle->local, zjs_net_config_get_ip(handle->tcp_sock),
+           sizeof(struct sockaddr));
+    handle->local = *zjs_net_config_get_ip(handle->tcp_sock);
     zjs_obj_add_boolean(this, true, "listening");
 
-    zjs_trigger_event(this, "listening", NULL, 0, NULL, NULL);
+    // Here we defer just to keep the call stack short; this is unless we
+    //   determine that the listeners should be called before this function
+    //   returns. Note, since this is a JS API function we can be sure we're in
+    //   the main thread and can call JerryScript functions as above. Normally
+    //   when we're calling defer_emit we put off those kinds of calls until
+    //   we're sure to be back in the main thread during the pre_emit callback
+    zjs_defer_emit_event(this, "listening", NULL, 0, NULL, NULL);
 
     CHECK(net_context_accept(handle->tcp_sock, tcp_accepted, 0, handle));
 
@@ -866,17 +879,14 @@ static ZJS_DECL_FUNC(net_create_server)
     return server;
 }
 
-static void tcp_connected_c_callback(void *handle, const void *args)
+// a zjs_pre_emit_callback
+static void connect_callback(void *h, jerry_value_t argv[], u32_t *argc,
+                             const char *buffer, u32_t bytes)
 {
-    sock_handle_t *sock_handle = (sock_handle_t *)handle;
-    if (sock_handle) {
-        // set socket.connecting property == false
-        zjs_obj_add_boolean(sock_handle->socket, false, "connecting");
-        zjs_add_event_listener(sock_handle->socket, "connect",
-                               sock_handle->connect_listener);
-        zjs_trigger_event(sock_handle->socket, "connect", NULL, 0, NULL, NULL);
-        zjs_remove_callback(sock_handle->tcp_connect_id);
-    }
+    sock_handle_t *handle = (sock_handle_t *)h;
+    zjs_obj_add_boolean(handle->socket, false, "connecting");
+    zjs_add_event_listener(handle->socket, "connect",
+                           handle->connect_listener);
 }
 
 static void tcp_connected(struct net_context *context, int status,
@@ -894,9 +904,10 @@ static void tcp_connected(struct net_context *context, int status,
             // activity, restart timeout
             start_socket_timeout(sock_handle);
 
-            sock_handle->tcp_connect_id = zjs_add_c_callback(sock_handle,
-                tcp_connected_c_callback);
-            zjs_signal_callback(sock_handle->tcp_connect_id, NULL, 0);
+            // here we supply a pre callback to manipulate JerryScript objects
+            //   from the main thread; but don't actually have args to pass
+            zjs_defer_emit_event(sock_handle->socket, "connect", NULL, 0,
+                                 connect_callback, NULL);
 
             DBG_PRINT("connection success, context=%p, socket=%u\n", context,
                       sock_handle->socket);

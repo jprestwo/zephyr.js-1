@@ -120,6 +120,14 @@ bool zjs_emit_event(jerry_value_t obj, const char *event_name,
 // emit helpers
 
 /**
+ * Copies one jerry_value_t from buffer to argv[0]
+ *
+ * A zjs_pre_emit callback.
+ */
+void zjs_copy_arg(void *unused, jerry_value_t argv[], u32_t *argc,
+                  const char *buffer, u32_t bytes);
+
+/**
  * Releases the jerry_value_t's in argv
  *
  * A zjs_post_emit callback.
