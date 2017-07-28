@@ -120,10 +120,6 @@ typedef struct sock_handle {
 
 static sock_handle_t *opened_sockets = NULL;
 
-static const jerry_object_native_info_t net_type_info = {
-   .free_cb = free_handle_nop
-};
-
 // get the socket handle from the object or NULL
 #define GET_SOCK_HANDLE(obj, var)  \
     sock_handle_t *var = (sock_handle_t *)zjs_event_get_user_handle(obj);
@@ -131,6 +127,15 @@ static const jerry_object_native_info_t net_type_info = {
 // get the socket handle or return a JS error
 #define GET_SOCK_HANDLE_JS(obj, var)                                       \
     sock_handle_t *var = (sock_handle_t *)zjs_event_get_user_handle(obj);  \
+    if (!var) { return zjs_error("no socket handle"); }
+
+// get the net handle from the object or NULL
+#define GET_NET_HANDLE(obj, var)  \
+    net_handle_t *var = (net_handle_t *)zjs_event_get_user_handle(obj);
+
+// get the net handle or return a JS error
+#define GET_NET_HANDLE_JS(obj, var)                                       \
+    net_handle_t *var = (net_handle_t *)zjs_event_get_user_handle(obj);  \
     if (!var) { return zjs_error("no socket handle"); }
 
 #define CHECK(x)                                 \
@@ -180,7 +185,7 @@ static void start_socket_timeout(sock_handle_t *handle)
             handle->timer_started = 1;
         }
         k_timer_start(&handle->timer, handle->timeout, handle->timeout);
-        DBG_PRINT("starting socket timeout: %u\n", time);
+        DBG_PRINT("starting socket timeout: %u\n", handle->timeout);
     } else if (handle->timer_started) {
         DBG_PRINT("stoping socket timeout\n");
         k_timer_stop(&handle->timer);
@@ -661,7 +666,7 @@ static void tcp_accepted(struct net_context *context,
  */
 static ZJS_DECL_FUNC(server_address)
 {
-    ZJS_GET_HANDLE(this, net_handle_t, handle, net_type_info);
+    GET_NET_HANDLE_JS(this, handle);
 
     jerry_value_t info = jerry_create_object();
     zjs_obj_add_number(info, handle->port, "port");
@@ -698,7 +703,7 @@ static ZJS_DECL_FUNC(server_close)
 {
     ZJS_VALIDATE_ARGS_OPTCOUNT(optcount, Z_OPTIONAL Z_FUNCTION);
 
-    ZJS_GET_HANDLE(this, net_handle_t, handle, net_type_info);
+    GET_NET_HANDLE_JS(this, handle);
 
     handle->listening = 0;
     zjs_obj_add_boolean(this, false, "listening");
@@ -728,9 +733,9 @@ static ZJS_DECL_FUNC(server_get_connections)
 {
     ZJS_VALIDATE_ARGS(Z_FUNCTION);
 
-    int count = 0;
-    ZJS_GET_HANDLE(this, net_handle_t, handle, net_type_info);
+    GET_NET_HANDLE_JS(this, handle);
 
+    int count = 0;
     sock_handle_t *cur = opened_sockets;
     while (cur) {
         if (cur->handle == handle) {
@@ -763,7 +768,7 @@ static ZJS_DECL_FUNC(server_listen)
     // options object, optional function
     ZJS_VALIDATE_ARGS_OPTCOUNT(optcount, Z_OBJECT, Z_OPTIONAL Z_FUNCTION);
 
-    ZJS_GET_HANDLE(this, net_handle_t, handle, net_type_info);
+    GET_NET_HANDLE_JS(this, handle);
 
     int ret;
     double port = 0;
@@ -829,7 +834,7 @@ static ZJS_DECL_FUNC(server_listen)
 
     CHECK(net_context_accept(handle->tcp_sock, tcp_accepted, 0, handle));
 
-    DBG_PRINT("listening for connection to %s:%u\n", hostname, port);
+    DBG_PRINT("listening for connection to %s:%u\n", hostname, (u32_t)port);
 
     return ZJS_UNDEFINED;
 }
@@ -857,22 +862,20 @@ static ZJS_DECL_FUNC(net_create_server)
     zjs_obj_add_boolean(server, false, "listening");
     zjs_obj_add_number(server, NET_DEFAULT_MAX_CONNECTIONS, "maxConnections");
 
-    zjs_make_event(server, zjs_net_server_prototype, NULL);
-
-    if (optcount) {
-        zjs_add_event_listener(server, "connection", argv[0]);
-    }
-
     net_handle_t *handle = zjs_malloc(sizeof(net_handle_t));
     if (!handle) {
         jerry_release_value(server);
         return zjs_error("could not alloc server handle");
     }
 
-    jerry_set_object_native_pointer(server, handle, &net_type_info);
-
     handle->server = server;
     handle->listening = 0;
+
+    zjs_make_event(server, zjs_net_server_prototype, handle);
+
+    if (optcount) {
+        zjs_add_event_listener(server, "connection", argv[0]);
+    }
 
     DBG_PRINT("creating server: context=%p\n", handle->tcp_sock);
 
