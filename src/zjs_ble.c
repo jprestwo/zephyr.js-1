@@ -1323,7 +1323,7 @@ jerry_value_t zjs_ble_init()
     zjs_obj_add_function(ble_obj, zjs_ble_descriptor, "Descriptor");
 
     // make it an event object
-    zjs_make_event(ble_obj, ZJS_UNDEFINED, NULL);
+    zjs_make_event(ble_obj, ZJS_UNDEFINED, NULL, NULL);
 
     handle->ble_obj = jerry_acquire_value(ble_obj);
 

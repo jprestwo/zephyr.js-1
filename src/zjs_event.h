@@ -58,9 +58,10 @@ typedef void (*zjs_event_free)(void *handle);
  * @param obj           Object to turn into an event object
  * @param prototype     Object to decorate and use as prototype, or undefined
  * @param user_handle   A handle the caller can get back later
+ * @param free_cb       A callback for cleanup related to user_handle
  */
 void zjs_make_event(jerry_value_t obj, jerry_value_t prototype,
-                    void *user_handle);
+                    void *user_handle, zjs_event_free free_cb);
 
 /**
  * Get back the user handle for this event supplied to zjs_make_event

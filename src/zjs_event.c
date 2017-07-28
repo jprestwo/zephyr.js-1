@@ -30,7 +30,6 @@ typedef struct emitter {
     int max_listeners;
     event_t *events;
     void *user_handle;
-    // FIXME: may not need this
     zjs_event_free user_free;
 } emitter_t;
 
@@ -50,7 +49,6 @@ static void zjs_emitter_free_cb(void *native)
         event = event->next;
     }
     ZJS_LIST_FREE(event_t, handle->events, zjs_free);
-    // FIXME: may not need this
     if (handle->user_free) {
         handle->user_free(handle->user_handle);
     }
@@ -611,7 +609,7 @@ bool zjs_trigger_event_now(jerry_value_t obj,
 }
 
 void zjs_make_event(jerry_value_t obj, jerry_value_t prototype,
-                    void *user_data)
+                    void *user_data, zjs_event_free free_cb)
 {
     ZVAL event_obj = jerry_create_object();
 
@@ -633,9 +631,7 @@ void zjs_make_event(jerry_value_t obj, jerry_value_t prototype,
     emitter_t *emitter = zjs_malloc(sizeof(emitter_t));
     emitter->max_listeners = 10;
     emitter->events = NULL;
-    /* FIXME: may not be needed
     emitter->user_free = free_cb;
-    */
     emitter->user_handle = user_data;
     jerry_set_object_native_pointer(obj, emitter, &emitter_type_info);
 }
@@ -652,7 +648,7 @@ void *zjs_event_get_user_handle(jerry_value_t obj)
 static ZJS_DECL_FUNC(event_constructor)
 {
     jerry_value_t new_emitter = jerry_create_object();
-    zjs_make_event(new_emitter, ZJS_UNDEFINED, NULL);
+    zjs_make_event(new_emitter, ZJS_UNDEFINED, NULL, NULL);
     return new_emitter;
 }
 
