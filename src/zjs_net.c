@@ -340,6 +340,7 @@ static void tcp_received(struct net_context *context,
         //   just ignore the 0 args and this way we don't need a new function
         zjs_defer_emit_event(handle->socket, "close", NULL, 0, NULL,
                              release_close);
+        net_pkt_unref(buf);
         return;
     }
 
@@ -365,9 +366,8 @@ static void tcp_received(struct net_context *context,
                           context, data, len);
             }
         }
-
-        net_pkt_unref(buf);
     }
+    net_pkt_unref(buf);
 }
 
 static inline void pkt_sent(struct net_context *context, int status,
