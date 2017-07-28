@@ -34,12 +34,19 @@ typedef struct emitter {
     zjs_event_free user_free;
 } emitter_t;
 
+static void free_listener(void *ptr)
+{
+    listener_t *listener = (listener_t *)ptr;
+    jerry_release_value(listener->func);
+    zjs_free(listener);
+}
+
 static void zjs_emitter_free_cb(void *native)
 {
     emitter_t *handle = (emitter_t *)native;
     event_t *event = handle->events;
     while (event) {
-        ZJS_LIST_FREE(listener_t, event->listeners, zjs_free);
+        ZJS_LIST_FREE(listener_t, event->listeners, free_listener);
         event = event->next;
     }
     ZJS_LIST_FREE(event_t, handle->events, zjs_free);
@@ -119,37 +126,32 @@ jerry_value_t zjs_add_event_listener(jerry_value_t obj, const char *event_name,
 {
     // requires: event is an event name; func is a valid JS function
     //  returns: an error, or 0 value on success
-    ZJS_PRINT("ADD EVENT LISTENER\n");
+    ZJS_PRINT("[EV] add event listener to '%s' on obj=%p\n", event_name,
+              (void *)obj);
     ZJS_GET_HANDLE_ALT(obj, emitter_t, handle, emitter_type_info);
 
-    bool added = false;
     event_t *event = ZJS_LIST_FIND_CMP(event_t, handle->events, compare_name,
                                        event_name);
     if (!event) {
         int len = strlen(event_name);
         event = (event_t *)zjs_malloc(sizeof(event_t) + len);
-        if (event) {
-            event->next = NULL;
-            event->listeners = NULL;
-            event->namelen = len;
-            strcpy(event->name, event_name);
+        if (!event) {
+            return zjs_error_context("out of memory", 0, 0);
         }
-        added = true;
+        event->next = NULL;
+        event->listeners = NULL;
+        event->namelen = len;
+        strcpy(event->name, event_name);
     }
 
     listener_t *listener = zjs_malloc(sizeof(listener_t));
-    if (listener) {
-        listener->func = func;
-        listener->next = NULL;
-    }
-
-    if (!event || !listener) {
-        if (added) {
-            zjs_free(event);
-        }
-        zjs_free(listener);
+    if (!listener) {
+        zjs_free(event);
         return zjs_error_context("out of memory", 0, 0);
     }
+
+    listener->func = jerry_acquire_value(func);
+    listener->next = NULL;
 
     ZJS_LIST_APPEND(event_t, handle->events, event);
     ZJS_LIST_APPEND(listener_t, event->listeners, listener);
@@ -171,7 +173,7 @@ jerry_value_t zjs_add_event_listener(jerry_value_t obj, const char *event_name,
 static ZJS_DECL_FUNC(add_listener)
 {
     // args: event name, callback
-    ZJS_PRINT("ADD LISTENER\n");
+    ZJS_PRINT("[EV] add listener\n");
 
     ZJS_VALIDATE_ARGS(Z_STRING, Z_FUNCTION);
 
@@ -212,7 +214,7 @@ static ZJS_DECL_FUNC(emit_event)
 static ZJS_DECL_FUNC(remove_listener)
 {
     // args: event name, callback
-    ZJS_PRINT("REMOVE LISTENER\n");
+    ZJS_PRINT("[EV] remove listener\n");
     ZJS_VALIDATE_ARGS(Z_STRING, Z_FUNCTION);
 
     ZVAL event_emitter = zjs_get_property(this, ZJS_HIDDEN_PROP("event"));
@@ -246,7 +248,7 @@ static ZJS_DECL_FUNC(remove_listener)
 static ZJS_DECL_FUNC(remove_all_listeners)
 {
     // args: event name
-    ZJS_PRINT("REMOVE ALL LISTENERS\n");
+    ZJS_PRINT("[EV] remove all listeners\n");
     ZJS_VALIDATE_ARGS(Z_STRING);
 
     ZVAL event_emitter = zjs_get_property(this, ZJS_HIDDEN_PROP("event"));
@@ -418,7 +420,7 @@ typedef struct emit_event {
 } emit_event_t;
 
 static void emit_event_callback(void *handle, const void *args) {
-    ZJS_PRINT("EMIT EVENT CB\n");
+    DBG_PRINT("[EV] emit callback\n");
     const emit_event_t *emit = (const emit_event_t *)args;
     ZJS_PRINT("*** obj = %p, pre = %p, post = %p, len = %d\n",
               (void *)emit->obj, emit->pre, emit->post, emit->length);
@@ -430,16 +432,11 @@ static void emit_event_callback(void *handle, const void *args) {
     jerry_value_t *argp = argv;
     u32_t argc = 0;
     if (emit->pre) {
-        ZJS_PRINT("BEFORE...\n");
         emit->pre(user_handle, argv, &argc, emit->data, emit->length);
-        ZJS_PRINT("AFTER...\n");
     }
-    ZJS_PRINT("NEXT...\n");
     if (argc == 0) {
-        ZJS_PRINT("HERE...\n");
         argp = NULL;
     }
-    ZJS_PRINT("argv[0]: %p, argp[0]: %p\n", (void *)argv[0], (void *)argp[0]);
 
     // emit the event
     zjs_emit_event(emit->obj, emit->data + emit->length, argp, argc);
@@ -470,7 +467,6 @@ void zjs_release_args(void *unused, jerry_value_t argv[], u32_t argc)
 {
     // effects: releases all jerry values in argv baesd on argc count
     for (int i = 0; i < argc; i++) {
-        ZJS_PRINT("JRV OF *************** %p\n", (void *)argv[i]);
         jerry_release_value(argv[i]);
     }
 }
@@ -479,10 +475,11 @@ void zjs_defer_emit_event(jerry_value_t obj, const char *event,
                           const void *buffer, int bytes,
                           zjs_pre_emit pre, zjs_post_emit post)
 {
-    ZJS_PRINT("DEFER EMIT\n");
     // requires: don't exceed MAX_EVENT_ARGS in pre function
     //  effects: threadsafe way to schedule an event to be triggered from the
     //             main thread in the next event loop pass
+    DBG_PRINT("queuing event '%s'\n", event);
+
     int namelen = strlen(event);
     int len = sizeof(emit_event_t) + namelen + 1 + bytes;
     char buf[len];
@@ -496,15 +493,15 @@ void zjs_defer_emit_event(jerry_value_t obj, const char *event,
     }
     // assert: if buffer is null, bytes should be 0, and vice versa
     strcpy(emit->data + bytes, event);
-    ZJS_PRINT("EMIT ID: %d\n", emit_id);
     zjs_signal_callback(emit_id, buf, len);
 }
 
 bool zjs_emit_event(jerry_value_t obj, const char *event_name,
                     const jerry_value_t argv[], u32_t argc)
 {
-    ZJS_PRINT("EMIT EVENT\n");
     // effects: emits event now, should only be called from main thread
+    DBG_PRINT("emitting event '%s'\n", event_name);
+
     ZJS_GET_HANDLE_OR_NULL(obj, emitter_t, handle, emitter_type_info);
     if (!handle) {
         ERR_PRINT("no handle found\n");
@@ -512,14 +509,17 @@ bool zjs_emit_event(jerry_value_t obj, const char *event_name,
     }
 
     // find the event among our defined events
+    event_t *ev = handle->events;
+    while (ev) {
+        ev = ev->next;
+    }
+
     event_t *event = ZJS_LIST_FIND_CMP(event_t, handle->events, compare_name,
                                        event_name);
     if (!event) {
-        ZJS_PRINT("Warning: event not found: %s\n", event_name);
+        DBG_PRINT("Event %s fell in the woods with no listeners\n", event_name);
         return false;
     }
-
-    ZJS_PRINT("argv[0]: %p, argc: %d\n", (void *)argv[0], argc);
 
     // call the listeners in order
     listener_t *listener = event->listeners;
@@ -527,6 +527,7 @@ bool zjs_emit_event(jerry_value_t obj, const char *event_name,
         ZVAL rval = jerry_call_function(listener->func, obj, argv, argc);
         listener = listener->next;
     }
+
     return true;
 }
 
@@ -565,7 +566,7 @@ bool zjs_trigger_event(jerry_value_t obj,
 
     zjs_signal_callback(callback_id, argv, argc * sizeof(jerry_value_t));
 
-    DBG_PRINT("triggering event '%s', args_cnt=%lu, callback_id=%ld\n", event,
+    DBG_PRINT("triggering event '%s', args_cnt=%u, callback_id=%d\n", event,
               argc, callback_id);
 
     return true;
@@ -676,7 +677,6 @@ jerry_value_t zjs_event_init()
                        (double)DEFAULT_MAX_LISTENERS, "defaultMaxListeners");
 
     emit_id = zjs_add_c_callback(NULL, emit_event_callback);
-    ZJS_PRINT("CREATE EMIT ID: %d\n", emit_id);
 
     return jerry_create_external_function(event_constructor);
 }
