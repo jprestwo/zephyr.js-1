@@ -575,7 +575,7 @@ static void tcp_received(struct net_context *context,
     if (con && pkt) {
         u32_t len = net_pkt_appdatalen(pkt);
 
-        DBG_PRINT("data recieved on context %p: len=%u\n", con->tcp_sock, len);
+        DBG_PRINT("data received on context %p: len=%u\n", con->tcp_sock, len);
 
         struct net_buf *tmp = pkt->frags;
         u32_t header_len = net_pkt_appdata(pkt) - tmp->data;
