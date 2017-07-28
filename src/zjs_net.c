@@ -129,10 +129,6 @@ static sock_handle_t *opened_sockets = NULL;
     sock_handle_t *var = (sock_handle_t *)zjs_event_get_user_handle(obj);  \
     if (!var) { return zjs_error("no socket handle"); }
 
-// get the net handle from the object or NULL
-#define GET_NET_HANDLE(obj, var)  \
-    net_handle_t *var = (net_handle_t *)zjs_event_get_user_handle(obj);
-
 // get the net handle or return a JS error
 #define GET_NET_HANDLE_JS(obj, var)                                       \
     net_handle_t *var = (net_handle_t *)zjs_event_get_user_handle(obj);  \
@@ -279,16 +275,11 @@ enum {
     ERROR_CONNECT_SOCKET,
 };
 
-typedef struct error_pair {
-    const char *name;
-    const char *message;
-} error_pair_t;
-
-error_pair_t error_messages[] = {
-    {"ReadError", "socket has been closed"},
-    {"WriteError", "error writing to socket"},
-    {"AcceptError", "error listening to accepted connection"},
-    {"NotFoundError", "failed to make connection"},
+static const char *error_messages[] = {
+    "socket has been closed",
+    "error writing to socket",
+    "error listening to accepted connection",
+    "failed to make connection",
 };
 
 typedef struct error_desc {
@@ -297,8 +288,8 @@ typedef struct error_desc {
     jerry_value_t function_obj;
 } error_desc_t;
 
-error_desc_t create_error_desc(u32_t error_id, jerry_value_t this,
-                               jerry_value_t function_obj)
+static error_desc_t create_error_desc(u32_t error_id, jerry_value_t this,
+                                      jerry_value_t function_obj)
 {
     error_desc_t desc;
     desc.error_id = error_id;
@@ -321,10 +312,10 @@ static void handle_error_arg(void *unused, jerry_value_t argv[], u32_t *argc,
     }
 
     error_desc_t *desc = (error_desc_t *)buffer;
-    error_pair_t *pair = &error_messages[desc->error_id];
+    const char *message = error_messages[desc->error_id];
 
-    jerry_value_t error = zjs_custom_error(pair->name, pair->message,
-                                           desc->this, desc->function_obj);
+    jerry_value_t error = zjs_error_context(message, desc->this,
+                                            desc->function_obj);
     jerry_value_clear_error_flag(&error);
     argv[0] = error;
     *argc = 1;
