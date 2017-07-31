@@ -40,7 +40,6 @@ typedef void (*zjs_post_emit)(void *handle, jerry_value_t argv[], u32_t argc);
 typedef void (*zjs_post_event)(void *handle);
 
 /**
- * FIXME: Make sure this is actually used before we check it in
  * Callback prototype for when an event object is freed
  *
  * @param handle        Handle given to zjs_make_event()

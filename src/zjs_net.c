@@ -618,7 +618,7 @@ static void tcp_accepted(struct net_context *context,
     DBG_PRINT("connection made, context %p error %d\n", context, error);
 
     // FIXME: this shouldn't really be getting called here because it runs in
-    //   a networking thread but is doing malloc and jerryscriptt calls
+    //   a networking thread but is doing malloc and JerryScript calls
     jerry_value_t sock = create_socket(false, &sock_handle);
     if (!sock_handle) {
         ERR_PRINT("could not allocate socket handle\n");
