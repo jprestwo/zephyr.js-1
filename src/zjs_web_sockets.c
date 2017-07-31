@@ -168,6 +168,7 @@ static void handle_error_arg(void *unused, jerry_value_t argv[], u32_t *argc,
     *argc = 1;
 }
 
+// a zjs_event_free callback
 static void free_server(void *native)
 {
     // effects: free up the server handle when it goes out of scope in JS
