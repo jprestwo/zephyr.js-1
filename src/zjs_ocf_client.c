@@ -152,7 +152,7 @@ static jerry_value_t get_props_from_response(oc_client_response_t *data)
         case INT:
             zjs_obj_add_number(prop_object, (double)rep->value.integer,
                                oc_string(rep->name));
-            DBG_PRINT("%ld\n", (u32_t)rep->value.integer);
+            DBG_PRINT("%d\n", rep->value.integer);
             break;
         case BYTE_STRING:
         case STRING:
@@ -194,7 +194,7 @@ static void print_props_data(oc_client_response_t *data)
             ZJS_PRINT("%d\n", rep->value.boolean);
             break;
         case INT:
-            ZJS_PRINT("%ld\n", (u32_t)rep->value.integer);
+            ZJS_PRINT("%d\n", rep->value.integer);
             break;
         case BYTE_STRING:
         case STRING:
@@ -260,8 +260,8 @@ static jerry_value_t create_resource(struct client_resource *client)
     zjs_set_property(resource, "resourceTypes", client->types_array);
     zjs_set_property(resource, "interfaces", client->iface_array);
 
-    DBG_PRINT("id=%s, path=%s, obj number=%lu\n", client->device_id,
-              client->resource_path, resource);
+    DBG_PRINT("id=%s, path=%s, obj number=%p\n", client->device_id,
+              client->resource_path, (void *)resource);
 
     return resource;
 }
@@ -337,19 +337,20 @@ static void add_resource(char *id, char *type, char *path,
 }
 
 /*
- * Callback to observe, does not do anything currently
+ * Callback to observe
  */
 static void observe_callback(oc_client_response_t *data)
 {
     if (data && data->user_data) {
         struct client_resource *resource =
             (struct client_resource *)data->user_data;
-        ZVAL resource_val = create_resource(resource);
+        jerry_value_t resource_val = create_resource(resource);
         ZVAL properties_val = get_props_from_response(data);
-
         zjs_set_property(resource_val, "properties", properties_val);
-        zjs_trigger_event(resource->client, "update", &resource_val, 1, NULL,
-                          NULL);
+
+        zjs_defer_emit_event(resource->client, "update", &resource_val,
+                             sizeof(resource_val), zjs_copy_arg,
+                             zjs_release_args);
 
 #ifdef DEBUG_BUILD
         print_props_data(data);
@@ -474,10 +475,12 @@ Found:
 
             // Work-around for #1332
             // Pass duplicate resource to trigger event and promise
-            ZVAL res = create_resource(cur);
+            jerry_value_t res = create_resource(cur);
             ZVAL res2 = create_resource(cur);
-            zjs_trigger_event(cur->client, "resourcefound", &res, 1, NULL,
-                              NULL);
+            // FIXME: see if we can do without the second one now with the
+            //   emit_event implementation
+            zjs_defer_emit_event(cur->client, "resourcefound", &res,
+                                 sizeof(res), zjs_copy_arg, zjs_release_args);
             jerry_resolve_or_reject_promise(h->promise_obj, res2, true);
             jerry_release_value(h->promise_obj);
 
@@ -761,7 +764,7 @@ static void ocf_get_platform_info_handler(oc_client_response_t *data)
     if (data && data->user_data) {
         struct ocf_handler *h = (struct ocf_handler *)data->user_data;
         struct client_resource *resource = h->res;
-        ZVAL platform_info = jerry_create_object();
+        jerry_value_t platform_info = jerry_create_object();
 
         /*
          * TODO: This while loop is repeated in several functions. It would be
@@ -779,7 +782,7 @@ static void ocf_get_platform_info_handler(oc_client_response_t *data)
                 DBG_PRINT("%d\n", rep->value.boolean);
                 break;
             case INT:
-                DBG_PRINT("%ld\n", (u32_t)rep->value.integer);
+                DBG_PRINT("%d\n", rep->value.integer);
                 break;
             case BYTE_STRING:
             case STRING:
@@ -838,8 +841,9 @@ static void ocf_get_platform_info_handler(oc_client_response_t *data)
             rep = rep->next;
         }
 
-        zjs_trigger_event(resource->client, "platformfound", &platform_info, 1,
-                          NULL, NULL);
+        zjs_defer_emit_event(resource->client, "platformfound", &platform_info,
+                             sizeof(platform_info), zjs_copy_arg,
+                             zjs_release_args);
         jerry_resolve_or_reject_promise(h->promise_obj, platform_info, true);
         jerry_release_value(h->promise_obj);
     }
@@ -881,7 +885,7 @@ static void ocf_get_device_info_handler(oc_client_response_t *data)
     if (data && data->user_data) {
         struct ocf_handler *h = (struct ocf_handler *)data->user_data;
         struct client_resource *resource = h->res;
-        ZVAL device_info = jerry_create_object();
+        jerry_value_t device_info = jerry_create_object();
 
         /*
          * TODO: This while loop is repeated in several functions. It would be
@@ -899,7 +903,7 @@ static void ocf_get_device_info_handler(oc_client_response_t *data)
                 DBG_PRINT("%d\n", rep->value.boolean);
                 break;
             case INT:
-                DBG_PRINT("%ld\n", (u32_t)rep->value.integer);
+                DBG_PRINT("%d\n", rep->value.integer);
                 break;
             case BYTE_STRING:
             case STRING:
@@ -946,8 +950,9 @@ static void ocf_get_device_info_handler(oc_client_response_t *data)
             rep = rep->next;
         }
 
-        zjs_trigger_event(resource->client, "devicefound", &device_info, 1,
-                          NULL, NULL);
+        zjs_defer_emit_event(resource->client, "devicefound", &device_info,
+                             sizeof(device_info), zjs_copy_arg,
+                             zjs_release_args);
         jerry_resolve_or_reject_promise(h->promise_obj, device_info, true);
         jerry_release_value(h->promise_obj);
     }
