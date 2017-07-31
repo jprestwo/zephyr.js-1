@@ -113,7 +113,7 @@ void zjs_defer_emit_event(jerry_value_t obj, const char *event,
  * @param argv          Arguments to give to the event listeners as parameters
  * @param argc          Number of arguments
  *
- * @return              True if there were listeners
+ * @return              True if there were listeners called
  */
 bool zjs_emit_event(jerry_value_t obj, const char *event_name,
                     const jerry_value_t argv[], u32_t argc);
@@ -134,44 +134,6 @@ void zjs_copy_arg(void *unused, jerry_value_t argv[], u32_t *argc,
  * A zjs_post_emit callback.
  */
 void zjs_release_args(void *unused, jerry_value_t argv[], u32_t argc);
-
-/**
- * Trigger an event
- *
- * FIXME: We need to describe how the ownership of args values works; it appears
- *        maybe the caller needs to keep them live (acquired) and then release
- *        them in post; or could we simplify this by acquiring them ourselves
- *        here and releasing our copies later? Then the caller would just
- *        release theirs immediately after the zjs_trigger_event call.
- *
- * @param obj           Object that contains the event to be triggered
- * @param event         Name of event
- * @param args          Arguments to give to the event listener as parameters
- * @param args_cnt      Number of arguments
- * @param post          Function to be called after the event is triggered
- * @param handle        A handle that is accessible in the 'post' call
- *
- * @return              True if there were listeners
- */
-bool zjs_trigger_event(jerry_value_t obj, const char *event,
-                       const jerry_value_t argv[], u32_t argc,
-                       zjs_post_event post, void *handle);
-
-/**
- * Call any registered event listeners immediately
- *
- * @param obj           Object that contains the event to be triggered
- * @param event         Name of event
- * @param args          Arguments to give to the event listener as parameters
- * @param args_cnt      Number of arguments
- * @param post          Function to be called after the event is triggered
- * @param handle        A handle that is accessable in the 'post' call
- *
- * @return              True if there were listeners
- */
-bool zjs_trigger_event_now(jerry_value_t obj, const char *event,
-                           const jerry_value_t argv[], u32_t argc,
-                           zjs_post_event post, void *h);
 
 /**
  * Initialize the event module

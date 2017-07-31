@@ -59,27 +59,10 @@ static const jerry_object_native_info_t emitter_type_info = {
     .free_cb = zjs_emitter_free_cb
 };
 
-typedef struct event_trigger {
-    void *handle;
-    zjs_post_event post;
-} event_trigger_t;
-
 typedef struct event_names {
     jerry_value_t name_array;
     int idx;
 } event_names_t;
-
-// TODO: should be able to remove this and call post directly
-void post_event(void *h, jerry_value_t ret_val)
-{
-    event_trigger_t *trigger = (event_trigger_t *)h;
-    if (trigger) {
-        if (trigger->post) {
-            trigger->post(trigger->handle);
-        }
-        zjs_free(trigger);
-    }
-}
 
 static u32_t get_num_events(jerry_value_t emitter)
 {
@@ -203,10 +186,10 @@ static ZJS_DECL_FUNC(emit_event)
         return zjs_error("event name is too long");
     }
 
-    // FIXME: This is supposed to return true if there were listeners; false,
-    //   otherwise. Check that it's behaving correctly. Doesn't look like it.
-    return jerry_create_boolean(zjs_trigger_event(this, event, argv + 1,
-                                                  argc - 1, NULL, NULL));
+    bool rval = zjs_emit_event(this, event, argv + 1, argc - 1);
+
+    // return true if there were listeners called
+    return jerry_create_boolean(rval);
 }
 
 static ZJS_DECL_FUNC(remove_listener)
@@ -526,86 +509,7 @@ bool zjs_emit_event(jerry_value_t obj, const char *event_name,
         listener = listener->next;
     }
 
-    return true;
-}
-
-bool zjs_trigger_event(jerry_value_t obj,
-                       const char *event,
-                       const jerry_value_t argv[],
-                       u32_t argc,
-                       zjs_post_event post,
-                       void *h)
-{
-    ZJS_PRINT("TRIGGER EMIT\n");
-    ZVAL event_emitter = zjs_get_property(obj, ZJS_HIDDEN_PROP("event"));
-    ZVAL map = zjs_get_property(event_emitter, "map");
-    ZVAL event_obj = zjs_get_property(map, event);
-
-    if (!jerry_value_is_object(event_obj)) {
-        DBG_PRINT("event object not found\n");
-        return false;
-    }
-
-    s32_t callback_id = get_callback_id(event_obj);
-    if (callback_id == -1) {
-        ERR_PRINT("callback_id not found\n");
-        return false;
-    }
-
-    event_trigger_t *trigger = zjs_malloc(sizeof(event_trigger_t));
-    if (!trigger) {
-        ERR_PRINT("could not allocate trigger, out of memory\n");
-        return false;
-    }
-    trigger->handle = h;
-    trigger->post = post;
-
-    zjs_edit_callback_handle(callback_id, trigger);
-
-    zjs_signal_callback(callback_id, argv, argc * sizeof(jerry_value_t));
-
-    DBG_PRINT("triggering event '%s', args_cnt=%u, callback_id=%d\n", event,
-              argc, callback_id);
-
-    return true;
-}
-
-bool zjs_trigger_event_now(jerry_value_t obj,
-                           const char *event,
-                           const jerry_value_t argv[],
-                           u32_t argc,
-                           zjs_post_event post,
-                           void *h)
-{
-    ZJS_PRINT("TRIGGER NOW\n");
-    ZVAL event_emitter = zjs_get_property(obj, ZJS_HIDDEN_PROP("event"));
-    ZVAL map = zjs_get_property(event_emitter, "map");
-    ZVAL event_obj = zjs_get_property(map, event);
-
-    if (!jerry_value_is_object(event_obj)) {
-        ERR_PRINT("event object not found\n");
-        return false;
-    }
-
-    s32_t callback_id = get_callback_id(event_obj);
-    if (callback_id == -1) {
-        ERR_PRINT("callback_id not found\n");
-        return false;
-    }
-
-    event_trigger_t *trigger = zjs_malloc(sizeof(event_trigger_t));
-    if (!trigger) {
-        ERR_PRINT("could not allocate trigger, out of memory\n");
-        return false;
-    }
-    trigger->handle = h;
-    trigger->post = post;
-
-    zjs_edit_callback_handle(callback_id, trigger);
-
-    zjs_call_callback(callback_id, argv, argc);
-
-    return true;
+    return event->listeners ? true : false;
 }
 
 void zjs_make_event(jerry_value_t obj, jerry_value_t prototype,
