@@ -6,7 +6,11 @@
 // ZJS includes
 #include "zjs_util.h"
 
-#define MAX_EVENT_ARGS 4
+// This needs to be big enough to fit all the args that any zjs_pre_emit
+// function wants to use, so may need to be increased in the future. An error
+// message in emit_event_callback should let you know that you've exceeded the
+// limit.
+#define MAX_EVENT_ARGS 2
 
 /**
  * Callback prototype for before an event is emitted

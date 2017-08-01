@@ -320,6 +320,9 @@ static void emit_event_callback(void *handle, const void *args) {
     u32_t argc = 0;
     if (emit->pre) {
         emit->pre(user_handle, argv, &argc, emit->data, emit->length);
+        if (argc > MAX_EVENT_ARGS) {
+            ERR_PRINT("Must increase MAX_EVENT_ARGS!");
+        }
     }
     if (argc == 0) {
         argp = NULL;
