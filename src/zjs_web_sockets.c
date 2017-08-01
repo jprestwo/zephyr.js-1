@@ -438,27 +438,13 @@ static void close_connection(void *h, jerry_value_t argv[], u32_t argc)
 {
     ws_connection_t *con = (ws_connection_t *)h;
 
-    ws_connection_t **pcur = &connections;
-    ws_connection_t *cur = connections;
-    while (cur) {
-        if (cur == con) {
-            break;
-        }
-        pcur = &cur->next;
-        cur = cur->next;
-    }
+    ZJS_LIST_REMOVE(ws_connection_t, connections, con);
 
-    if (!cur) {
-        ERR_PRINT("connection handle %p does not exist\n", con);
-        return;
-    }
-
-    *pcur = cur->next;
-    net_context_put(cur->tcp_sock);
-    zjs_free(cur->rbuf);
-    zjs_free(cur->accept_key);
-    zjs_remove_callback(cur->accept_handler_id);
-    zjs_free(cur);
+    net_context_put(con->tcp_sock);
+    zjs_free(con->rbuf);
+    zjs_free(con->accept_key);
+    zjs_remove_callback(con->accept_handler_id);
+    zjs_free(con);
     DBG_PRINT("Freed socket: opened_sockets=%p\n", connections);
 }
 
