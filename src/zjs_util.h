@@ -417,7 +417,7 @@ void zjs_loop_init(void);
 // Example:
 //    list_item_t *item = ZJS_LIST_FIND(list_item_t, my_list, value, 42);
 
-// The above will return a list item whos `value` parameter == 42
+// The above will return a list item whose `value` parameter == 42
 #define ZJS_LIST_FIND(type, list, cmp_element, cmp_to) \
     ({                                                 \
         type *found = NULL;                            \
@@ -432,6 +432,7 @@ void zjs_loop_init(void);
         found;                                         \
     })
 
+// Version that takes a function used to compare with a value
 #define ZJS_LIST_FIND_CMP(type, list, cmp_func, cmp_to) \
     ({                                                  \
         type *found = NULL;                             \

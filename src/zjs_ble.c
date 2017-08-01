@@ -514,7 +514,6 @@ static void string_arg(void *unused, jerry_value_t argv[], u32_t *argc,
                        const char *buffer, u32_t bytes)
 {
     // requires: buffer contains string with bytes chars including null term
-    ZJS_PRINT("()()() HERE IN string-arg with '%s'\n", buffer);
     argv[0] = jerry_create_string((jerry_char_t *)buffer);
     *argc = 1;
 }
@@ -803,7 +802,6 @@ static ZJS_DECL_FUNC(zjs_ble_start_advertising)
     else {
         error = jerry_create_null();
     }
-    ZJS_PRINT("ERROR VALUE:  ---------------> %p\n", error);
     zjs_defer_emit_event(ble_handle->ble_obj, "advertisingStart", &error,
                          sizeof(jerry_value_t), zjs_copy_arg, zjs_release_args);
     DBG_PRINT("BLE event: advertisingStart\n");

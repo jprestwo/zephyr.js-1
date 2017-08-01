@@ -146,13 +146,11 @@ static zjs_callback_id new_id(void)
     if (id >= cb_size) {
         cb_size = id + 1;
     }
-    ZJS_PRINT("RETURNING ID %d\n", id);
     return id;
 }
 
 void zjs_init_callbacks(void)
 {
-    ZJS_PRINT("INIT CALLBACK!\n");
     if (!cb_map) {
         size_t size = sizeof(zjs_callback_t *) * INITIAL_CALLBACK_SIZE;
         cb_map = (zjs_callback_t **)zjs_malloc(size);
@@ -315,8 +313,6 @@ zjs_callback_id add_callback_list_priv(jerry_value_t js_func,
             return -1;
         }
         new_cb->func_list[0] = jerry_acquire_value(js_func);
-        ZJS_PRINT(">>>>>>>>>>>> SET %d IN LIST PRIV TO %p\n", new_cb->id,
-                  new_cb);
         cb_map[new_cb->id] = new_cb;
 
 #ifdef DEBUG_BUILD
@@ -340,7 +336,6 @@ zjs_callback_id add_callback_priv(jerry_value_t js_func,
                                   )
 #endif
 {
-    ZJS_PRINT(">>> ADD CALLBACK PRIV!\n");
     LOCK();
     zjs_callback_t *new_cb = zjs_malloc(sizeof(zjs_callback_t));
     if (!new_cb) {
@@ -361,7 +356,6 @@ zjs_callback_id add_callback_priv(jerry_value_t js_func,
     new_cb->num_funcs = 1;
 
     // Add callback to list
-    ZJS_PRINT(">>>>>>>>>>>> SET %d IN CB PRIV TO %p\n", new_cb->id, new_cb);
     cb_map[new_cb->id] = new_cb;
 
     DBG_PRINT("adding new callback id %d, js_func=%u, once=%u\n", new_cb->id,
@@ -380,7 +374,6 @@ static void zjs_free_callback(zjs_callback_id id)
     if (id >= 0 && cb_map[id] && GET_CB_REMOVED(cb_map[id]->flags)) {
         LOCK();
         zjs_free(cb_map[id]);
-        ZJS_PRINT(">>>>>>>>>>>> ZEROED %d IN FREE TO %p\n", id, NULL);
         cb_map[id] = NULL;
         UNLOCK();
     }
@@ -507,7 +500,6 @@ void signal_callback_priv(zjs_callback_id id,
 
 zjs_callback_id zjs_add_c_callback(void *handle, zjs_c_callback_func callback)
 {
-    ZJS_PRINT(">>> ADD C CALLBACK!\n");
     LOCK();
     zjs_callback_t *new_cb = zjs_malloc(sizeof(zjs_callback_t));
     if (!new_cb) {
@@ -523,8 +515,6 @@ zjs_callback_id zjs_add_c_callback(void *handle, zjs_c_callback_func callback)
     new_cb->handle = handle;
 
     // Add callback to list
-    ZJS_PRINT("ADDING CALLBACK TO ID %d: %p\n", new_cb->id, new_cb);
-    ZJS_PRINT(">>>>>>>>>>>> SET %d IN ADD C TO %p\n", new_cb->id, new_cb);
     cb_map[new_cb->id] = new_cb;
 
     DBG_PRINT("adding new C callback id %d\n", new_cb->id);

@@ -261,8 +261,8 @@ static jerry_value_t create_resource(struct client_resource *client)
     zjs_set_property(resource, "resourceTypes", client->types_array);
     zjs_set_property(resource, "interfaces", client->iface_array);
 
-    DBG_PRINT("id=%s, path=%s, obj number=%p\n", client->device_id,
-              client->resource_path, (void *)resource);
+    DBG_PRINT("id=%s, path=%s, obj number=%x\n", client->device_id,
+              client->resource_path, resource);
 
     return resource;
 }
