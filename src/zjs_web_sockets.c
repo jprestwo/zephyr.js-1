@@ -503,11 +503,11 @@ static void process_packet(ws_connection_t *con, u8_t *data, u32_t len)
         consume_data(con, packet->payload_len);
         break;
     case WS_PACKET_PING:
-        zjs_defer_emit_event(con->conn, "ping", &len, sizeof(len),
+        zjs_defer_emit_event(con->conn, "ping", &plen, sizeof(plen),
                              trigger_data, zjs_release_args);
         break;
     case WS_PACKET_PONG:
-        zjs_defer_emit_event(con->conn, "pong", &len, sizeof(len),
+        zjs_defer_emit_event(con->conn, "pong", &plen, sizeof(plen),
                              trigger_data, zjs_release_args);
         break;
     default:
@@ -577,7 +577,8 @@ static ZJS_DECL_FUNC(ws_terminate)
 static void create_ws_connection(void *h, jerry_value_t argv[], u32_t *argc,
                                  const char *buffer, u32_t bytes)
 {
-    ws_connection_t *con = (ws_connection_t *)h;
+    ws_connection_t *con = *(ws_connection_t **)buffer;
+
     // FIXME: this should be using a prototype
     jerry_value_t conn = jerry_create_object();
     zjs_obj_add_function(conn, ws_send, "send");
@@ -623,8 +624,6 @@ static void tcp_received(struct net_context *context,
      */
     if (con->state == AWAITING_ACCEPT) {
         con->state = CONNECTED;
-        zjs_defer_emit_event(con->server, "connection", NULL, 0,
-                             create_ws_connection, zjs_release_args);
     }
 
     // FIXME: this should be deferred, too big to fix right now
@@ -753,6 +752,8 @@ static void tcp_received(struct net_context *context,
                 zjs_free(send_data);
                 zjs_free(con->accept_key);
                 con->accept_key = NULL;
+                zjs_defer_emit_event(con->server, "connection", &con, sizeof(con),
+                                     create_ws_connection, zjs_release_args);
             } else {
                 // handler registered, accepted based on return of handler
                 zjs_signal_callback(con->accept_handler_id, &protocol_list,
@@ -809,6 +810,9 @@ static void post_accept_handler(void *handle, jerry_value_t ret_val)
     zjs_free(send_data);
     zjs_free(con->accept_key);
     con->accept_key = NULL;
+
+    zjs_defer_emit_event(con->server, "connection", &con, sizeof(con),
+                         create_ws_connection, zjs_release_args);
 }
 
 static void tcp_accepted(struct net_context *context,
