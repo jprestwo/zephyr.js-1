@@ -403,8 +403,8 @@ bool zjs_emit_event(jerry_value_t obj, const char *event_name,
 
     event_t *event = ZJS_LIST_FIND_CMP(event_t, handle->events, compare_name,
                                        event_name);
-    if (!event) {
-        DBG_PRINT("Event %s fell in the woods with no listeners\n", event_name);
+    if (!event || !event->listeners) {
+        DBG_PRINT("Event '%s' not found or no listeners\n", event_name);
         return false;
     }
 
@@ -415,7 +415,7 @@ bool zjs_emit_event(jerry_value_t obj, const char *event_name,
         listener = listener->next;
     }
 
-    return event->listeners ? true : false;
+    return true;
 }
 
 void zjs_make_event(jerry_value_t obj, jerry_value_t prototype,

@@ -51,8 +51,9 @@ void zjs_net_config_default(void)
 #endif
 #ifdef CONFIG_NET_IPV6
         // 2001:db8::1
-        static struct in6_addr in6addr_my = { { { 0x20, 0x01, 0x0d, 0xb8, 0, 0, 0, 0,
-                                                  0, 0, 0, 0, 0, 0, 0, 0x1 } } };
+        static struct in6_addr in6addr_my = { { { 0x20, 0x01, 0x0d, 0xb8,
+                                                  0, 0, 0, 0, 0, 0, 0, 0,
+                                                  0, 0, 0, 0x1 } } };
         net_if_ipv6_addr_add(net_if_get_default(), &in6addr_my, NET_ADDR_MANUAL, 0);
 #endif
         net_enabled = 1;
