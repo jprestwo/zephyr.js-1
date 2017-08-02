@@ -6,8 +6,13 @@
 #include <string.h>
 
 // ZJS includes
+#include "zjs_event.h"
 #include "zjs_callbacks.h"
 #include "zjs_util.h"
+
+#define RUN_TEST(name) \
+    printf("\nRUNNING TEST: " # name "\n"); \
+    (name)();
 
 static int passed = 0;
 static int total = 0;
@@ -457,14 +462,70 @@ void test_list_macros()
     zjs_assert(head == NULL, "list head was NULL");
 }
 
+static uint8_t listen_count = 0;
+
+jerry_value_t test_obj;
+jerry_value_t listener2;
+
+static void pre_listener(void *h, jerry_value_t argv[], u32_t *argc,
+                         const char *buffer, u32_t bytes)
+{
+    jerry_value_t event_obj = *((jerry_value_t*)buffer);
+    zjs_assert(event_obj == test_obj, "argv passed correctly");
+    zjs_assert(bytes == sizeof(jerry_value_t), "bytes passed correctly");
+    argv[0] = event_obj;
+    printf("argv=%p, argv[0] = %u\n", argv, argv[0]);
+    *argc = 1;
+}
+
+static ZJS_DECL_FUNC(test_listener1)
+{
+    zjs_add_event_listener(this, "event_nested", listener2);
+    listen_count++;
+    return ZJS_UNDEFINED;
+}
+
+static ZJS_DECL_FUNC(test_listener2)
+{
+    zjs_assert(listen_count == 1, "test_listener1 was called");
+    listen_count++;
+    return ZJS_UNDEFINED;
+}
+
+void test_events()
+{
+    jerry_init(JERRY_INIT_EMPTY);
+    zjs_init_callbacks();
+
+    ZVAL code_eval = jerry_parse((jerry_char_t *)"", strlen(""), false);
+    jerry_run(code_eval);
+
+    // test triggering event before one is registered
+    ZVAL event = jerry_create_object();
+    test_obj = event;
+    printf("event = %u\n", event);
+    ZVAL listener1 = jerry_create_external_function(test_listener1);
+    listener2 = jerry_create_external_function(test_listener2);
+    zjs_make_event(event, ZJS_UNDEFINED, NULL, NULL);
+
+    zjs_add_event_listener(event, "event", listener1);
+    zjs_defer_emit_event(event, "event", &event, sizeof(jerry_value_t), pre_listener, NULL);
+    zjs_defer_emit_event(event, "event_nested", NULL, 0, NULL, NULL);
+
+    zjs_service_callbacks();
+
+    zjs_assert(listen_count == 2, "test_listener2 was called");
+}
+
 void zjs_run_unit_tests()
 {
-    test_hex_to_byte();
-    test_default_convert_pin();
-    test_compress_32();
-    test_validate_args();
-    test_c_callbacks();
-    test_list_macros();
+    RUN_TEST(test_hex_to_byte);
+    RUN_TEST(test_default_convert_pin);
+    RUN_TEST(test_compress_32);
+    RUN_TEST(test_validate_args);
+    RUN_TEST(test_c_callbacks);
+    RUN_TEST(test_list_macros);
+    RUN_TEST(test_events);
 
     printf("TOTAL - %d of %d passed\n", passed, total);
     exit(!(passed == total));
