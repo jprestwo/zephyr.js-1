@@ -70,7 +70,8 @@ EXT_JERRY_FLAGS ?=	-DENABLE_ALL_IN_ONE=ON \
 			-DFEATURE_PROFILE=$(ZJS_BASE)/outdir/$(BOARD)/jerry_feature.profile \
 			-DFEATURE_ERROR_MESSAGES=ON \
 			-DJERRY_LIBM=OFF \
-			-DJERRY_PORT_DEFAULT=OFF
+			-DJERRY_PORT_DEFAULT=OFF \
+			-DFEATURE_VM_EXEC_STOP=ON
 
 # Work-around for #2363 until Zephyr fixes the SDK
 ifeq ($(VARIANT), release)

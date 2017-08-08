@@ -158,7 +158,8 @@ linux: setup $(BUILD_OBJ)
 		--profile=es2015-subset \
 		--jerry-port-default=OFF \
 		--jerry-cmdline OFF \
-		--jerry-libc OFF;
+		--jerry-libc OFF \
+		--vm-exec-stop ON;
 
 	@echo [LD] $(BUILD_DIR)/jslinux
 	@gcc $(LINUX_INCLUDES) $(JERRY_LIB_PATH) -o $(BUILD_DIR)/jslinux $(BUILD_OBJ) $(LINUX_FLAGS) $(CFLAGS) $(LINUX_DEFINES) $(LINUX_LIBS)

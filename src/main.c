@@ -87,6 +87,12 @@ u8_t process_cmd_line(int argc, char *argv[])
 }
 #endif
 
+// called if JerryScript is in an infinite loop
+static jerry_value_t activity_cb(void *user_p)
+{
+    return jerry_create_string((const jerry_char_t *)"Infinite Loop Detected");
+}
+
 #ifndef ZJS_LINUX_BUILD
 void main(void)
 #else
@@ -119,6 +125,8 @@ int main(int argc, char *argv[])
 #endif
 
     jerry_init(JERRY_INIT_EMPTY);
+
+    jerry_set_vm_exec_stop_callback(activity_cb, NULL, 16);
 
     // initialize modules
     zjs_modules_init();
@@ -240,7 +248,7 @@ int main(int argc, char *argv[])
         zjs_loop_block(wait_time);
 #endif
 #ifdef ZJS_LINUX_BUILD
-        if (!no_exit) {
+        if (!no_exit && !exit_after) {
             // if the last and current loop had no pending "events" (timers or
             // callbacks) and --autoexit is enabled the program will terminate
             if (last_serviced == 0 && serviced == 0) {
