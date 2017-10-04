@@ -362,3 +362,5 @@ void zjs_gpio_cleanup()
     gpio_pin_prototype = 0;
     gpio_api = 0;
 }
+
+ZJS_MODULE_BUILTIN(zjs_gpio, zjs_gpio_init, zjs_gpio_cleanup);

@@ -112,6 +112,8 @@ void main(void)
 int main(int argc, char *argv[])
 #endif
 {
+    zjs_run_modules();
+
 #ifndef ZJS_SNAPSHOT_BUILD
 #ifdef ZJS_LINUX_BUILD
     char *script = NULL;

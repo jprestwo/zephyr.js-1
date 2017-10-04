@@ -791,3 +791,15 @@ void zjs_loop_init(void)
 }
 #endif
 #endif
+
+extern zjs_module_t __start___zjs[];
+extern zjs_module_t __stop___zjs[];
+
+void zjs_run_modules(void)
+{
+    zjs_module_t *module;
+
+    for (module = __start___zjs; module < __stop___zjs; module++) {
+        ZJS_PRINT("MODULE: %s\n", module->name);
+    }
+}

@@ -661,4 +661,26 @@ void zjs_loop_init(void);
 #define CHECK_REF_COUNT(str, obj)
 #endif
 
+#if UINTPTR_MAX == 0xffffffff
+#define ZJS_ALIGN   4
+#elif UINTPTR_MAX == 0xffffffffffffffff
+#define ZJS_ALIGN   8
+#else
+#error "Could not determine target architecture"
+#endif
+
+void zjs_run_modules(void);
+
+typedef struct zjs_module {
+    const char *name;
+    jerry_value_t (*init)(void);
+    void (*cleanup)(void);
+} zjs_module_t __attribute__((aligned(ZJS_ALIGN)));
+
+#define ZJS_MODULE_BUILTIN(name, init, cleanup)                \
+    static zjs_module_t __zjs_builtin_ ## name        \
+        __attribute__((used, section("__zjs"), aligned(ZJS_ALIGN))) = { \
+            #name, init, cleanup               \
+        };
+
 #endif  // __zjs_util_h__
