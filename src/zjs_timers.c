@@ -29,6 +29,7 @@ typedef struct zjs_timer {
     u32_t interval;
     bool completed;
 #endif
+    jerry_value_t obj;
     struct zjs_timer *next;
 } zjs_timer_t;
 
@@ -163,6 +164,9 @@ static bool delete_timer(zjs_timer_t *tm)
             zjs_remove_callback(tm->callback_id);
         }
         ZJS_LIST_REMOVE(zjs_timer_t, zjs_timers, tm);
+
+        jerry_set_object_native_pointer(tm->obj, NULL, &timer_type_info);
+
         zjs_free(tm->argv);
         zjs_free(tm);
         return true;
@@ -190,6 +194,8 @@ static ZJS_DECL_FUNC_ARGS(add_timer_helper, bool repeat)
 #endif
     zjs_timer_t *handle = add_timer(interval, callback, this, repeat,
                                     argc - 2, argv);
+    handle->obj = timer_obj;
+
     if (handle->callback_id == -1)
         return zjs_error("timer alloc failed");
     jerry_set_object_native_pointer(timer_obj, handle, &timer_type_info);
@@ -216,10 +222,9 @@ static ZJS_DECL_FUNC(native_clear_interval_handler)
     // FIXME: timers should be ints, not objects!
     ZJS_VALIDATE_ARGS(Z_OBJECT);
 
-    ZJS_GET_HANDLE(argv[0], zjs_timer_t, handle, timer_type_info);
+    ZJS_GET_HANDLE_OR_NULL(argv[0], zjs_timer_t, handle, timer_type_info);
 
-    if (!delete_timer(handle))
-        return zjs_error("timer not found");
+    delete_timer(handle);
 
     return ZJS_UNDEFINED;
 }
